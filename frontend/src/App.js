@@ -14,6 +14,8 @@ const BRANCHES = ["CSE", "ECE", "IT", "EEE", "MECH", "CIVIL", "AIDS", "AIML", "O
 
 const buildDraft = (data) => ({ ...emptyDraft, ...data });
 
+const mediaUrl = (path) => path ? (path.startsWith("http") ? path : `${API}/media/${path}`) : null;
+
 /* ---------- Intro ---------- */
 function Intro({ clubs, onSkip }) {
   const [visible, setVisible] = useState(true);
@@ -35,7 +37,7 @@ function Intro({ clubs, onSkip }) {
       <div className="intro-logos">
         {(clubs || []).slice(0, 5).map((club, idx) => (
           <div key={club.slug || idx} className="intro-logo-badge" aria-label={club.name}>
-            {club.logoUrl ? <img src={club.logoUrl} alt={club.name} /> : <span>{idx + 1}</span>}
+            {club.logoUrl ? <img src={mediaUrl(club.logoUrl)} alt={club.name} /> : <span>{idx + 1}</span>}
           </div>
         ))}
         {(!clubs || clubs.length === 0) && Array.from({ length: 5 }).map((_, i) => <div key={i} className="intro-logo-badge"><span>{i + 1}</span></div>)}
@@ -109,8 +111,14 @@ function Landing() {
           {clubList.map((club, index) => (
             <article className="club-card" key={club.slug || index} data-testid={`club-card-${index + 1}`}>
               <div className="club-number">0{index + 1}</div>
-              <div className="club-logo">{club.logoUrl ? <img src={club.logoUrl} alt={club.name} /> : <div className="club-placeholder">{club.name.replace(/[^A-Z0-9]/g, "").slice(0, 2) || `C${index + 1}`}</div>}</div>
+              <div className="club-logo">{club.logoUrl ? <img src={mediaUrl(club.logoUrl)} alt={club.name} /> : <div className="club-placeholder">{club.name.replace(/[^A-Z0-9]/g, "").slice(0, 2) || `C${index + 1}`}</div>}</div>
               <h3>{club.name}</h3>
+              {(club.facultyInCharge || club.studentInCharge) && (
+                <p className="club-meta">
+                  {club.facultyInCharge && <span>Faculty · {club.facultyInCharge}</span>}
+                  {club.studentInCharge && <span>Student · {club.studentInCharge}</span>}
+                </p>
+              )}
               <span className="club-arrow">↗</span>
             </article>
           ))}
@@ -172,6 +180,10 @@ function Landing() {
         <span>Development preview · Official details pending</span>
         <Link to="/admin/login" data-testid="admin-link">Organizer sign-in ↗</Link>
       </footer>
+      <a className="built-by-badge" href="#collaboration" data-testid="built-by-badge">
+        <span className="built-by-dot" />
+        <span>Built by <b>GDG On Campus · KARE</b></span>
+      </a>
     </main>
   );
 }
@@ -202,6 +214,26 @@ function MemberCard({ member, index, update, remove, collegeType }) {
   const set = (key, value) => update({ ...member, [key]: value });
   const prefix = `member-${member.member_number}`;
   const isLead = member.member_number === 1;
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+
+  const uploadIdProof = async (file) => {
+    if (!file) return;
+    setUploadError("");
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await axios.post(`${API}/uploads/id-proof`, fd, { headers: { "Content-Type": "multipart/form-data" } });
+      const data = res.data.data;
+      update({ ...member, id_proof: { path: data.path, filename: data.filename, content_type: data.content_type } });
+    } catch (e) {
+      setUploadError(e.response?.data?.detail?.message || "Upload failed. Try a smaller PNG/JPG/PDF.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
   return (
     <article className="member-card" data-testid={`member-card-${member.member_number}`}>
       <div className="member-heading">
@@ -239,6 +271,18 @@ function MemberCard({ member, index, update, remove, collegeType }) {
               <Field label="Warden phone" testId={`${prefix}-warden-phone-input`} value={member.hostel?.warden_phone || ""} onChange={(e) => set("hostel", { ...(member.hostel || {}), warden_phone: e.target.value })} />
             </div>
           )}
+        </div>
+      )}
+      {isLead && (
+        <div className="accommodation">
+          <span className="field-label">Team lead ID proof<b>*</b></span>
+          <p className="muted" style={{ fontSize: 12, margin: "6px 0 12px" }}>Upload a photo of your student ID card (PNG · JPG · PDF · max 5 MB). Only shared with organizers.</p>
+          <label className="uploader" data-testid="id-proof-uploader">
+            <input type="file" accept="image/*,application/pdf" onChange={(e) => uploadIdProof(e.target.files?.[0])} data-testid={`${prefix}-id-proof-input`} />
+            <span>{uploading ? "Uploading…" : member.id_proof ? `Replace file (${member.id_proof.filename})` : "Choose file to upload"}</span>
+          </label>
+          {member.id_proof && !uploading && <p className="upload-ok" data-testid="id-proof-ok">✓ {member.id_proof.filename} attached</p>}
+          {uploadError && <p className="upload-error" data-testid="id-proof-error">{uploadError}</p>}
         </div>
       )}
     </article>
@@ -465,8 +509,134 @@ function AdminLogin() {
   );
 }
 
+function AdminBranding({ onError }) {
+  const [hackathon, setHackathon] = useState(null);
+  const [clubs, setClubs] = useState([]);
+  const [busy, setBusy] = useState({});
+
+  const load = useCallback(async () => {
+    try {
+      const [h, c] = await Promise.all([axios.get(`${API}/hackathon`), axios.get(`${API}/clubs`)]);
+      setHackathon(h.data.data);
+      setClubs(c.data.data);
+    } catch { onError?.("Unable to load branding."); }
+  }, [onError]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const uploadHackathon = async (file) => {
+    if (!file) return;
+    setBusy((b) => ({ ...b, hack: true }));
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      await axios.post(`${API}/admin/branding/hackathon-logo`, fd, { headers: { ...authHeaders(), "Content-Type": "multipart/form-data" } });
+      await load();
+    } catch (e) { onError?.(e.response?.data?.detail?.message || "Upload failed."); }
+    finally { setBusy((b) => ({ ...b, hack: false })); }
+  };
+
+  const uploadClub = async (slug, file) => {
+    if (!file) return;
+    setBusy((b) => ({ ...b, [slug]: true }));
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      await axios.post(`${API}/admin/branding/club-logo/${slug}`, fd, { headers: { ...authHeaders(), "Content-Type": "multipart/form-data" } });
+      await load();
+    } catch (e) { onError?.(e.response?.data?.detail?.message || "Upload failed."); }
+    finally { setBusy((b) => ({ ...b, [slug]: false })); }
+  };
+
+  const renameClub = async (slug, name, faculty, student) => {
+    const fd = new FormData();
+    fd.append("name", name);
+    fd.append("faculty_in_charge", faculty || "");
+    fd.append("student_in_charge", student || "");
+    try {
+      await axios.post(`${API}/admin/branding/club/${slug}`, fd, { headers: { ...authHeaders(), "Content-Type": "multipart/form-data" } });
+      await load();
+    } catch (e) { onError?.(e.response?.data?.detail?.message || "Update failed."); }
+  };
+
+  return (
+    <div className="branding-panel" data-testid="admin-branding">
+      <div className="branding-hackathon">
+        <p className="eyebrow">Hackathon logo</p>
+        <div className="branding-row">
+          <div className="branding-preview">
+            {hackathon?.logoUrl ? <img src={mediaUrl(hackathon.logoUrl)} alt="Hackathon logo" data-testid="hackathon-logo-preview" /> : <span className="muted">No logo uploaded</span>}
+          </div>
+          <label className="uploader" data-testid="hackathon-logo-uploader">
+            <input type="file" accept="image/*" onChange={(e) => uploadHackathon(e.target.files?.[0])} />
+            <span>{busy.hack ? "Uploading…" : hackathon?.logoUrl ? "Replace logo" : "Upload hackathon logo"}</span>
+          </label>
+        </div>
+      </div>
+      <div className="branding-clubs">
+        <p className="eyebrow">Collaborating clubs · 5 total</p>
+        {clubs.map((club) => (
+          <ClubBrandingRow key={club.slug} club={club} busy={busy[club.slug]} onUpload={(f) => uploadClub(club.slug, f)} onRename={(name, faculty, student) => renameClub(club.slug, name, faculty, student)} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ClubBrandingRow({ club, busy, onUpload, onRename }) {
+  const [name, setName] = useState(club.name);
+  const [faculty, setFaculty] = useState(club.facultyInCharge || "");
+  const [student, setStudent] = useState(club.studentInCharge || "");
+  useEffect(() => { setName(club.name); setFaculty(club.facultyInCharge || ""); setStudent(club.studentInCharge || ""); }, [club]);
+  return (
+    <div className="branding-row" data-testid={`club-branding-${club.slug}`}>
+      <div className="branding-preview">
+        {club.logoUrl ? <img src={mediaUrl(club.logoUrl)} alt={club.name} /> : <span className="muted">No logo</span>}
+      </div>
+      <div className="branding-controls">
+        <div className="field-grid" style={{ gridTemplateColumns: "1fr 1fr 1fr" }}>
+          <label className="field"><span>Club name</span><input value={name} onChange={(e) => setName(e.target.value)} data-testid={`club-name-${club.slug}`} /></label>
+          <label className="field"><span>Faculty in charge</span><input value={faculty} onChange={(e) => setFaculty(e.target.value)} data-testid={`club-faculty-${club.slug}`} /></label>
+          <label className="field"><span>Student in charge</span><input value={student} onChange={(e) => setStudent(e.target.value)} data-testid={`club-student-${club.slug}`} /></label>
+        </div>
+        <div className="branding-actions">
+          <label className="uploader" data-testid={`club-logo-uploader-${club.slug}`}>
+            <input type="file" accept="image/*" onChange={(e) => onUpload(e.target.files?.[0])} />
+            <span>{busy ? "Uploading…" : club.logoUrl ? "Replace logo" : "Upload logo"}</span>
+          </label>
+          <button className="outline-button" onClick={() => onRename(name, faculty, student)} data-testid={`save-club-${club.slug}`}>Save details</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function IdProofLink({ path, filename }) {
+  const [blobUrl, setBlobUrl] = useState(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => () => { if (blobUrl) URL.revokeObjectURL(blobUrl); }, [blobUrl]);
+  const load = async () => {
+    setBusy(true);
+    try {
+      const res = await axios.get(`${API}/admin/files/${path}`, { headers: authHeaders(), responseType: "blob" });
+      setBlobUrl(URL.createObjectURL(res.data));
+    } finally { setBusy(false); }
+  };
+  return (
+    <div className="id-proof-block" data-testid="id-proof-block">
+      <span className="eyebrow">ID proof</span>
+      {blobUrl ? (
+        <a href={blobUrl} target="_blank" rel="noreferrer" data-testid="id-proof-open">Open {filename || "file"} ↗</a>
+      ) : (
+        <button className="text-button" onClick={load} disabled={busy} data-testid="id-proof-load">{busy ? "Loading…" : `Load ${filename || "ID proof"} ↗`}</button>
+      )}
+    </div>
+  );
+}
+
 function AdminDashboard() {
   const navigate = useNavigate();
+  const [tab, setTab] = useState("registrations");
   const [stats, setStats] = useState(null);
   const [rows, setRows] = useState([]);
   const [pagination, setPagination] = useState({ page: 1, total: 0, pageSize: 25 });
@@ -538,7 +708,13 @@ function AdminDashboard() {
           <p className="eyebrow">Registration console</p>
           <h2>Team overview.</h2>
         </div>
+        <div className="admin-tabs" data-testid="admin-tabs">
+          <button className={tab === "registrations" ? "active" : ""} onClick={() => setTab("registrations")} data-testid="tab-registrations">Registrations</button>
+          <button className={tab === "branding" ? "active" : ""} onClick={() => setTab("branding")} data-testid="tab-branding">Branding & clubs</button>
+        </div>
         {error && <div className="form-error" data-testid="admin-error">{error}</div>}
+        {tab === "branding" ? <AdminBranding onError={setError} /> : (
+        <>
         {stats && (
           <div className="stats-grid" data-testid="admin-stats-grid">
             {[
@@ -598,6 +774,8 @@ function AdminDashboard() {
           <span className="mono">Page {pagination.page} · {pagination.total} total</span>
           <button className="outline-button" disabled={pagination.page * pagination.pageSize >= pagination.total} onClick={() => load(pagination.page + 1)} data-testid="admin-next-page">Next →</button>
         </div>
+        </>
+        )}
       </section>
       {detail && (
         <div className="modal" role="dialog" aria-label="Registration detail" onClick={() => setDetail(null)} data-testid="detail-modal">
@@ -614,6 +792,7 @@ function AdminDashboard() {
                   <p>{m.email} · {m.phone}</p>
                   <p className="muted">{m.registrationNumber} · {m.year} · {m.branch} · Sec {m.section} · Euphoria {m.euphoriaId}</p>
                   {m.accommodationType && <p className="muted">Accommodation: {m.accommodationType === "hosteller" ? `Hosteller · ${m.hostelName} Room ${m.roomNumber} · Warden ${m.wardenName} (${m.wardenPhone})` : "Day scholar"}</p>}
+                  {m.idProofPath && <IdProofLink path={m.idProofPath} filename={m.idProofFilename} />}
                 </div>
               ))}
             </div>

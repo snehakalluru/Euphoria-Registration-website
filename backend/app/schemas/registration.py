@@ -12,6 +12,12 @@ class HostelDetails(BaseModel):
     warden_phone: str = Field(min_length=7, max_length=20)
 
 
+class IdProofRef(BaseModel):
+    path: str = Field(min_length=1, max_length=400)
+    filename: str = Field(min_length=1, max_length=200)
+    content_type: str = Field(min_length=1, max_length=80)
+
+
 class MemberSubmission(BaseModel):
     member_number: int = Field(ge=1, le=5)
     name: str = Field(min_length=1, max_length=160)
@@ -25,6 +31,7 @@ class MemberSubmission(BaseModel):
     euphoria_id: str = Field(min_length=1, max_length=80)
     accommodation_type: Literal["day_scholar", "hosteller"] | None = None
     hostel: HostelDetails | None = None
+    id_proof: IdProofRef | None = None
 
     @field_validator("name", "registration_number", "phone", "gender", "year", "branch", "section", "euphoria_id", mode="before")
     @classmethod
@@ -62,6 +69,9 @@ class RegistrationSubmission(BaseModel):
             for member in self.members:
                 if member.accommodation_type is None:
                     raise ValueError("INVALID_ACCOMMODATION")
+        for member in self.members:
+            if member.member_number == 1 and member.id_proof is None:
+                raise ValueError("TEAM_LEAD_ID_PROOF_REQUIRED")
         numbers = sorted(member.member_number for member in self.members)
         if numbers != list(range(1, len(self.members) + 1)):
             raise ValueError("INVALID_MEMBER_SEQUENCE")

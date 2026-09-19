@@ -200,6 +200,47 @@ button { cursor: pointer; }
 .detail-member p { margin: 4px 0; font-size: 13px; color: var(--cream); }
 .detail-member p.muted { color: var(--muted); font-size: 12px; }
 
+/* UPLOADER */
+.uploader { display: inline-flex; align-items: center; gap: 12px; padding: 12px 16px; border: 1px dashed var(--gold); background: rgba(213, 169, 79, .08); color: var(--gold); font: 11px 'DM Mono', monospace; text-transform: uppercase; letter-spacing: .12em; cursor: pointer; transition: all .25s ease; }
+.uploader:hover { background: rgba(213, 169, 79, .15); }
+.uploader input { display: none; }
+.upload-ok { color: #7ec294; font-size: 12px; margin: 10px 0 0; }
+.upload-error { color: #f0a18c; font-size: 12px; margin: 10px 0 0; }
+
+/* BUILT BY BADGE */
+.built-by-badge { position: fixed; bottom: 22px; right: 22px; display: inline-flex; align-items: center; gap: 10px; padding: 10px 16px; background: rgba(24, 15, 10, .82); backdrop-filter: blur(12px); border: 1px solid var(--gold); color: var(--cream); font: 10px 'DM Mono', monospace; letter-spacing: .12em; text-transform: uppercase; text-decoration: none; z-index: 5; box-shadow: 0 8px 32px rgba(0, 0, 0, .4); transition: transform .3s ease, border-color .3s ease; }
+.built-by-badge:hover { transform: translateY(-3px); border-color: var(--gold-bright); }
+.built-by-badge b { color: var(--gold-bright); font-weight: 700; letter-spacing: .08em; margin-left: 4px; }
+.built-by-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--gold-bright); box-shadow: 0 0 12px var(--gold-bright); animation: pulse 2s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .5; } }
+
+/* CLUB CARD META */
+.club-meta { display: flex; flex-direction: column; gap: 2px; margin: 8px 0 0; font: 10px 'DM Mono', monospace; color: var(--muted); }
+
+/* ADMIN TABS + BRANDING */
+.admin-tabs { display: flex; gap: 8px; margin-bottom: 24px; }
+.admin-tabs button { background: transparent; border: 1px solid var(--line); color: var(--muted); padding: 12px 20px; font: 11px 'DM Mono', monospace; letter-spacing: .1em; text-transform: uppercase; }
+.admin-tabs button.active { border-color: var(--gold); color: var(--gold); background: rgba(213, 169, 79, .08); }
+.admin-tabs button:hover:not(.active) { color: var(--cream); }
+
+.branding-panel { display: flex; flex-direction: column; gap: 40px; }
+.branding-hackathon, .branding-clubs { border: 1px solid var(--line); background: rgba(43, 25, 16, .5); padding: 32px; }
+.branding-hackathon .eyebrow, .branding-clubs .eyebrow { margin-bottom: 20px; }
+.branding-row { display: grid; grid-template-columns: 120px 1fr; gap: 24px; align-items: center; padding: 20px 0; border-bottom: 1px solid var(--line); }
+.branding-row:last-child { border-bottom: 0; padding-bottom: 0; }
+.branding-hackathon .branding-row { padding: 0; border: 0; }
+.branding-preview { width: 120px; height: 120px; border: 1px solid var(--line); background: #180f0a; display: grid; place-items: center; overflow: hidden; }
+.branding-preview img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.branding-preview span { font-size: 10px; font-family: 'DM Mono', monospace; text-align: center; padding: 8px; }
+.branding-controls { display: flex; flex-direction: column; gap: 14px; }
+.branding-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+
+/* ID PROOF BLOCK */
+.id-proof-block { margin-top: 10px; display: flex; align-items: center; gap: 12px; padding: 10px 14px; border: 1px solid var(--gold); background: rgba(213, 169, 79, .06); }
+.id-proof-block .eyebrow { margin: 0; }
+.id-proof-block a { color: var(--gold-bright); text-decoration: none; font-size: 13px; }
+.id-proof-block a:hover { color: var(--cream); }
+
 /* ANIMATIONS */
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes rise { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: none; } }

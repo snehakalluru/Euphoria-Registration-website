@@ -72,6 +72,7 @@ async def create_registration(session: AsyncSession, payload: RegistrationSubmis
     session.add(team)
     for member in payload.members:
         hostel = member.hostel
+        proof = member.id_proof
         session.add(TeamMember(
             id=uuid4(), team_id=team.id, hackathon_id=hackathon.id, member_number=member.member_number,
             is_team_lead=member.member_number == 1, name=member.name, registration_number=member.registration_number,
@@ -81,6 +82,9 @@ async def create_registration(session: AsyncSession, payload: RegistrationSubmis
             euphoria_id_normalized=normalize_identifier(member.euphoria_id), accommodation_type=AccommodationType(member.accommodation_type) if member.accommodation_type else None,
             hostel_name=hostel.hostel_name if hostel else None, room_number=hostel.room_number if hostel else None,
             warden_name=hostel.warden_name if hostel else None, warden_phone=hostel.warden_phone if hostel else None,
+            id_proof_path=proof.path if proof else None,
+            id_proof_filename=proof.filename if proof else None,
+            id_proof_content_type=proof.content_type if proof else None,
         ))
     try:
         await session.commit()

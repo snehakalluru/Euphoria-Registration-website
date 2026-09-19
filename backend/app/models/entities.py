@@ -137,6 +137,9 @@ class TeamMember(TimestampMixin, Base):
     room_number: Mapped[str | None] = mapped_column(String(60))
     warden_name: Mapped[str | None] = mapped_column(String(160))
     warden_phone: Mapped[str | None] = mapped_column(String(20))
+    id_proof_path: Mapped[str | None] = mapped_column(Text)
+    id_proof_filename: Mapped[str | None] = mapped_column(String(200))
+    id_proof_content_type: Mapped[str | None] = mapped_column(String(80))
     team: Mapped[Team] = relationship(back_populates="members")
 
 

@@ -1,8 +1,9 @@
 import csv
 import io
+import logging
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, Response, UploadFile, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,9 +11,11 @@ from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
 from app.core.security import create_access_token, get_current_admin, verify_password
-from app.models import Admin, Team, TeamMember
+from app.models import Admin, Club, Hackathon, Team, TeamMember
 from app.schemas.admin import AdminLoginRequest, AdminLoginResponse
+from app.services.storage import StorageError, build_path, content_type_for, get_object, put_object, validate_upload
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/admin")
 
 
@@ -51,7 +54,7 @@ async def statistics(_: Admin = Depends(admin_dependency), session: AsyncSession
 
 
 def _member_to_dict(m: TeamMember) -> dict:
-    return {"memberNumber": m.member_number, "isTeamLead": m.is_team_lead, "name": m.name, "registrationNumber": m.registration_number, "email": m.email, "phone": m.phone, "gender": m.gender, "year": m.year, "branch": m.branch, "section": m.section, "euphoriaId": m.euphoria_id, "accommodationType": m.accommodation_type.value if m.accommodation_type else None, "hostelName": m.hostel_name, "roomNumber": m.room_number, "wardenName": m.warden_name, "wardenPhone": m.warden_phone}
+    return {"memberNumber": m.member_number, "isTeamLead": m.is_team_lead, "name": m.name, "registrationNumber": m.registration_number, "email": m.email, "phone": m.phone, "gender": m.gender, "year": m.year, "branch": m.branch, "section": m.section, "euphoriaId": m.euphoria_id, "accommodationType": m.accommodation_type.value if m.accommodation_type else None, "hostelName": m.hostel_name, "roomNumber": m.room_number, "wardenName": m.warden_name, "wardenPhone": m.warden_phone, "idProofPath": m.id_proof_path, "idProofFilename": m.id_proof_filename, "idProofContentType": m.id_proof_content_type}
 
 
 @router.get("/registrations")
@@ -102,3 +105,62 @@ async def registration_detail(registration_id: str, _: Admin = Depends(admin_dep
     if team is None:
         raise HTTPException(status_code=404, detail={"code": "REGISTRATION_NOT_FOUND", "message": "Registration not found."})
     return {"success": True, "data": {"registrationId": team.registration_id, "teamName": team.team_name, "collegeType": team.college_type.value, "collegeName": team.college_name, "memberCount": team.member_count, "submittedAt": team.submitted_at, "status": team.status.value, "members": [_member_to_dict(m) for m in team.members]}}
+
+
+@router.post("/branding/hackathon-logo")
+async def upload_hackathon_logo(file: UploadFile = File(...), _: Admin = Depends(admin_dependency), session: AsyncSession = Depends(get_db)):
+    data = await file.read()
+    try:
+        validate_upload(file.filename or "", len(data), "logo")
+        path = build_path("hackathon-logo", file.filename or "logo.png")
+        ctype = file.content_type or content_type_for(file.filename or "")
+        result = put_object(path, data, ctype)
+    except StorageError as exc:
+        raise HTTPException(status_code=400, detail={"code": "UPLOAD_FAILED", "message": str(exc)}) from exc
+    hackathon = await session.scalar(select(Hackathon).where(Hackathon.is_active.is_(True)))
+    if hackathon is None:
+        raise HTTPException(status_code=404, detail={"code": "HACKATHON_NOT_CONFIGURED", "message": "Hackathon not configured"})
+    hackathon.logo_url = result["path"]
+    await session.commit()
+    return {"success": True, "data": {"path": result["path"], "filename": file.filename}}
+
+
+@router.post("/branding/club-logo/{club_slug}")
+async def upload_club_logo(club_slug: str, file: UploadFile = File(...), _: Admin = Depends(admin_dependency), session: AsyncSession = Depends(get_db)):
+    data = await file.read()
+    try:
+        validate_upload(file.filename or "", len(data), "logo")
+        path = build_path(f"club-logos/{club_slug}", file.filename or "logo.png")
+        ctype = file.content_type or content_type_for(file.filename or "")
+        result = put_object(path, data, ctype)
+    except StorageError as exc:
+        raise HTTPException(status_code=400, detail={"code": "UPLOAD_FAILED", "message": str(exc)}) from exc
+    club = await session.scalar(select(Club).where(Club.slug == club_slug))
+    if club is None:
+        raise HTTPException(status_code=404, detail={"code": "CLUB_NOT_FOUND", "message": "Club not found"})
+    club.logo_url = result["path"]
+    await session.commit()
+    return {"success": True, "data": {"clubSlug": club_slug, "path": result["path"], "filename": file.filename}}
+
+
+@router.post("/branding/club/{club_slug}")
+async def rename_club(club_slug: str, name: str = Form(...), faculty_in_charge: str | None = Form(default=None), student_in_charge: str | None = Form(default=None), _: Admin = Depends(admin_dependency), session: AsyncSession = Depends(get_db)):
+    club = await session.scalar(select(Club).where(Club.slug == club_slug))
+    if club is None:
+        raise HTTPException(status_code=404, detail={"code": "CLUB_NOT_FOUND", "message": "Club not found"})
+    club.name = name.strip()[:160]
+    if faculty_in_charge is not None:
+        club.faculty_in_charge = faculty_in_charge.strip()[:160] or None
+    if student_in_charge is not None:
+        club.student_in_charge = student_in_charge.strip()[:160] or None
+    await session.commit()
+    return {"success": True, "data": {"clubSlug": club_slug, "name": club.name, "facultyInCharge": club.faculty_in_charge, "studentInCharge": club.student_in_charge}}
+
+
+@router.get("/files/{path:path}")
+async def download_file(path: str, _: Admin = Depends(admin_dependency)):
+    try:
+        data, ctype = get_object(path)
+    except StorageError as exc:
+        raise HTTPException(status_code=404, detail={"code": "FILE_NOT_FOUND", "message": str(exc)}) from exc
+    return Response(content=data, media_type=ctype, headers={"Content-Disposition": f'inline; filename="{path.split("/")[-1]}"'})

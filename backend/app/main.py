@@ -11,6 +11,8 @@ from app.core.security import hash_password
 from app.models import Admin, Base, Club, Hackathon
 from app.routes.public import router as public_router
 from app.routes.admin import router as admin_router
+from app.routes.uploads import router as uploads_router
+from app.services.storage import init_storage
 
 
 DEV_RULES = [
@@ -35,11 +37,11 @@ DEV_SDG_GOALS = [
     {"code": "SDG 13", "title": "Climate Action & Environmental Monitoring"},
 ]
 DEV_CLUBS = [
-    {"name": "[CLUB_01]", "slug": "club-01", "display_order": 1, "description": "Collaborating partner · placeholder"},
-    {"name": "[CLUB_02]", "slug": "club-02", "display_order": 2, "description": "Collaborating partner · placeholder"},
-    {"name": "[CLUB_03]", "slug": "club-03", "display_order": 3, "description": "Collaborating partner · placeholder"},
-    {"name": "[CLUB_04]", "slug": "club-04", "display_order": 4, "description": "Collaborating partner · placeholder"},
-    {"name": "[CLUB_05]", "slug": "club-05", "display_order": 5, "description": "Collaborating partner · placeholder"},
+    {"name": "GDG On Campus · KARE", "slug": "gdg-kare", "display_order": 1, "description": "Google Developer Groups On Campus at KARE — flagship organiser", "logo_url": "https://customer-assets-eiarnc6j.emergentagent.net/job_12145b8e-9780-481f-b432-98049080e6cc/artifacts/kwb4jxde_GFG%20LOGO.webp"},
+    {"name": "KARE ACM Student Chapter", "slug": "acm-kare", "display_order": 2, "description": "Association for Computing Machinery · KARE student chapter", "logo_url": "https://customer-assets-eiarnc6j.emergentagent.net/job_12145b8e-9780-481f-b432-98049080e6cc/artifacts/zaogaxa6_WhatsApp%20Image%202026-09-09%20at%209.58.21%20PM%20%282%29.jpeg"},
+    {"name": "KARE IEEE Education Society", "slug": "ieee-eds", "display_order": 3, "description": "IEEE Education Society · KARE chapter", "logo_url": "https://customer-assets-eiarnc6j.emergentagent.net/job_12145b8e-9780-481f-b432-98049080e6cc/artifacts/qop5o1eu_WhatsApp%20Image%202026-09-09%20at%209.58.21%20PM%20%281%29.jpeg"},
+    {"name": "KARE ACM-W", "slug": "acm-w-kare", "display_order": 4, "description": "ACM's committee for women in computing at KARE", "logo_url": "https://customer-assets-eiarnc6j.emergentagent.net/job_12145b8e-9780-481f-b432-98049080e6cc/artifacts/8f6z2auc_WhatsApp%20Image%202026-09-09%20at%209.58.21%20PM.jpeg"},
+    {"name": "Collaboration Partner", "slug": "partner-05", "display_order": 5, "description": "Additional collaborating community", "logo_url": "https://customer-assets-eiarnc6j.emergentagent.net/job_12145b8e-9780-481f-b432-98049080e6cc/artifacts/oje6iuak_image.png"},
 ]
 
 
@@ -69,7 +71,7 @@ async def seed_dev_data():
             for club in DEV_CLUBS:
                 if club["display_order"] in existing_orders:
                     continue
-                session.add(Club(hackathon_id=hackathon.id, name=club["name"], slug=club["slug"], display_order=club["display_order"], description=club["description"], is_visible=True))
+                session.add(Club(hackathon_id=hackathon.id, name=club["name"], slug=club["slug"], display_order=club["display_order"], description=club["description"], logo_url=club.get("logo_url"), is_visible=True))
         admin_email = os.getenv("ADMIN_EMAIL", "admin@euphoria.dev").strip().lower()
         admin_password = os.getenv("ADMIN_PASSWORD", "Admin@12345")
         existing_admin = await session.scalar(select(Admin).where(Admin.email == admin_email))
@@ -85,6 +87,11 @@ async def lifespan(_: FastAPI):
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
     await seed_dev_data()
+    try:
+        init_storage()
+    except Exception as exc:  # storage not fatal for boot
+        import logging
+        logging.getLogger(__name__).warning("Storage init failed at startup: %s", exc)
     yield
     await engine.dispose()
 
@@ -102,6 +109,7 @@ app.add_middleware(
 )
 app.include_router(public_router)
 app.include_router(admin_router)
+app.include_router(uploads_router)
 
 
 @app.get("/api/health")

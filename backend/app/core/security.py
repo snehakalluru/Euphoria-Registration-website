@@ -1,4 +1,5 @@
 import os
+import uuid
 from datetime import datetime, timedelta, timezone
 
 import bcrypt
@@ -32,8 +33,8 @@ async def get_current_admin(request: Request, session: AsyncSession) -> Admin:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
     try:
         payload = jwt.decode(token, os.environ["SECRET_KEY"], algorithms=[os.getenv("JWT_ALGORITHM", "HS256")])
-        admin_id = payload.get("sub")
-    except (jwt.ExpiredSignatureError, jwt.InvalidTokenError, KeyError):
+        admin_id = uuid.UUID(payload.get("sub"))
+    except (jwt.ExpiredSignatureError, jwt.InvalidTokenError, KeyError, ValueError, TypeError):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired session")
     admin = await session.scalar(select(Admin).where(Admin.id == admin_id, Admin.is_active.is_(True)))
     if admin is None:

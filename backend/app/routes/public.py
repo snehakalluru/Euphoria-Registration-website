@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -6,8 +6,17 @@ from app.core.database import get_db
 from app.models import Club, Hackathon, Team
 from app.schemas.registration import PublicRegistrationResponse, RegistrationCreatedResponse, RegistrationSubmission
 from app.services.registration_service import RegistrationServiceError, create_registration
+from app.services.storage import StorageError, get_object
 
 router = APIRouter(prefix="/api")
+
+
+def _logo_url(path: str | None) -> str | None:
+    if not path:
+        return None
+    if path.startswith("http://") or path.startswith("https://"):
+        return path
+    return f"/api/media/{path}"
 
 
 @router.get("/hackathon")
@@ -15,7 +24,7 @@ async def get_hackathon(session: AsyncSession = Depends(get_db)):
     hackathon = await session.scalar(select(Hackathon).where(Hackathon.is_active.is_(True)).limit(1))
     if hackathon is None:
         raise HTTPException(status_code=404, detail={"code": "HACKATHON_NOT_CONFIGURED", "message": "Hackathon content is not configured."})
-    return {"success": True, "data": {"name": hackathon.name, "tagline": hackathon.tagline, "description": hackathon.description, "logoUrl": hackathon.logo_url, "rules": hackathon.rules or [], "eligibility": hackathon.eligibility or [], "instructions": hackathon.instructions or [], "sdgGoals": hackathon.sdg_goals or [], "whatsappUrl": hackathon.whatsapp_url}}
+    return {"success": True, "data": {"name": hackathon.name, "tagline": hackathon.tagline, "description": hackathon.description, "logoUrl": _logo_url(hackathon.logo_url), "rules": hackathon.rules or [], "eligibility": hackathon.eligibility or [], "instructions": hackathon.instructions or [], "sdgGoals": hackathon.sdg_goals or [], "whatsappUrl": hackathon.whatsapp_url}}
 
 
 @router.get("/clubs")
@@ -24,7 +33,19 @@ async def get_clubs(session: AsyncSession = Depends(get_db)):
     clubs = result.scalars().all()
     if len(clubs) != 5:
         raise HTTPException(status_code=503, detail={"code": "CLUB_CONFIGURATION_INVALID", "message": "Exactly five collaborating clubs must be configured."})
-    return {"success": True, "data": [{"name": club.name, "slug": club.slug, "logoUrl": club.logo_url, "description": club.description, "displayOrder": club.display_order} for club in clubs]}
+    return {"success": True, "data": [{"name": club.name, "slug": club.slug, "logoUrl": _logo_url(club.logo_url), "description": club.description, "displayOrder": club.display_order, "facultyInCharge": club.faculty_in_charge, "studentInCharge": club.student_in_charge} for club in clubs]}
+
+
+@router.get("/media/{path:path}")
+async def public_media(path: str):
+    """Public proxy for logo/branding assets. Only serves image content-types."""
+    try:
+        data, ctype = get_object(path)
+    except StorageError:
+        raise HTTPException(status_code=404, detail={"code": "MEDIA_NOT_FOUND", "message": "Media not found."})
+    if not ctype.startswith("image/"):
+        raise HTTPException(status_code=403, detail={"code": "MEDIA_FORBIDDEN", "message": "Non-image files are not publicly accessible."})
+    return Response(content=data, media_type=ctype, headers={"Cache-Control": "public, max-age=86400"})
 
 
 @router.post("/registrations", response_model=RegistrationCreatedResponse, status_code=status.HTTP_201_CREATED)

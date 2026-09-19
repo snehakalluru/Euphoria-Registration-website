@@ -78,7 +78,7 @@ class Team(TimestampMixin, Base):
         UniqueConstraint("id", "hackathon_id", name="uq_teams_id_hackathon_id"),
         UniqueConstraint("hackathon_id", "team_name_normalized", name="uq_teams_hackathon_team_name"),
         CheckConstraint("member_count BETWEEN 4 AND 5", name="ck_teams_member_count"),
-        CheckConstraint("confirmation_accepted = 1 OR confirmation_accepted IS TRUE", name="ck_teams_confirmation_accepted"),
+        CheckConstraint("confirmation_accepted IS TRUE", name="ck_teams_confirmation_accepted"),
         Index("ix_teams_submitted_at", "submitted_at"),
         Index("ix_teams_college_type", "college_type"),
         Index("ix_teams_member_count", "member_count"),

@@ -65,6 +65,11 @@ async def seed_dev_data():
             )
             session.add(hackathon)
             await session.flush()
+        else:
+            # keep DB in sync with env on every boot (name, tagline, whatsapp)
+            hackathon.name = os.getenv("HACKATHON_NAME", hackathon.name)
+            hackathon.tagline = os.getenv("HACKATHON_TAGLINE", hackathon.tagline)
+            hackathon.whatsapp_url = os.getenv("HACKATHON_WHATSAPP_URL", hackathon.whatsapp_url)
         existing_clubs = (await session.scalars(select(Club).where(Club.hackathon_id == hackathon.id))).all()
         if len(existing_clubs) < 5:
             existing_orders = {c.display_order for c in existing_clubs}

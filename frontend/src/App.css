@@ -37,6 +37,26 @@ button { cursor: pointer; }
 .hero h1 em, .final-cta h2 em { font-family: 'Playfair Display', serif; color: var(--gold-bright); font-weight: 500; }
 .hero-text, .success-copy { font-size: 16px; line-height: 1.8; max-width: 480px; color: #c8b8a5; margin: 0 0 38px; }
 
+/* EVENT CHIPS */
+.event-chips { list-style: none; padding: 0; margin: 0 0 32px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; max-width: 620px; }
+.event-chips li { border: 1px solid var(--line); background: rgba(43, 25, 16, .55); padding: 12px 16px; display: flex; flex-direction: column; gap: 4px; transition: border-color .25s ease; }
+.event-chips li:hover { border-color: rgba(213, 169, 79, .5); }
+.event-chips span { font: 10px 'DM Mono', monospace; color: var(--gold); letter-spacing: .12em; text-transform: uppercase; }
+.event-chips b { font-weight: 600; font-size: 13px; color: var(--cream); line-height: 1.35; letter-spacing: -.01em; }
+
+/* COUNTDOWN */
+.countdown { border: 1px solid var(--gold); background: linear-gradient(135deg, rgba(213, 169, 79, .18), rgba(43, 25, 16, .8)); padding: 22px 26px; margin-bottom: 36px; max-width: 540px; box-shadow: 0 20px 60px rgba(213, 169, 79, .12); }
+.countdown-label { display: block; font: 10px 'DM Mono', monospace; color: var(--gold); letter-spacing: .18em; text-transform: uppercase; margin-bottom: 16px; }
+.countdown-units { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.countdown-unit { text-align: center; padding: 10px 6px; border: 1px solid rgba(213, 169, 79, .28); background: rgba(24, 15, 10, .55); }
+.countdown-unit strong { display: block; font-family: 'DM Mono', monospace; font-size: clamp(28px, 4vw, 42px); font-weight: 500; color: var(--gold-bright); letter-spacing: .04em; line-height: 1; margin-bottom: 6px; font-variant-numeric: tabular-nums; }
+.countdown-unit span { font: 9px 'DM Mono', monospace; color: var(--muted); letter-spacing: .18em; text-transform: uppercase; }
+.countdown-live { border-color: #7ec294; background: linear-gradient(135deg, rgba(126, 194, 148, .2), rgba(43, 25, 16, .8)); }
+.countdown-live .countdown-label { color: #7ec294; }
+
+.faculty-contact-card { border-color: var(--line); background: rgba(43, 25, 16, .5); }
+.faculty-contact-card:hover { border-color: var(--gold); }
+
 .gold-button { border: 1px solid var(--gold); background: var(--gold); color: #1b100b; padding: 15px 20px; min-height: 50px; font-weight: 800; font-size: 12px; letter-spacing: .02em; }
 .gold-button span { margin-left: 26px; font-size: 16px; }
 .gold-button:hover { background: var(--gold-bright); transform: translateY(-2px); }
@@ -313,6 +333,11 @@ button { cursor: pointer; }
   .hero h1 { font-size: 58px; }
   .hero { overflow: hidden; }
   .hero-mark { width: 220px; top: 210px; right: -60px; opacity: .32; }
+  .event-chips { grid-template-columns: 1fr; }
+  .countdown { padding: 18px; }
+  .countdown-units { gap: 6px; }
+  .countdown-unit { padding: 8px 4px; }
+  .countdown-unit strong { font-size: 26px; }
   .scroll-hint { left: 24px; }
   .club-grid { grid-template-columns: 1fr; }
   .club-card:last-child { grid-column: auto; }

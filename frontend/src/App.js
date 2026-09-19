@@ -27,13 +27,63 @@ const FACULTY_COORDINATORS = [
 const FACULTY_SPONSOR = { name: "Dr. P. Chinnasamy", role: "ACM / IEEE EDU SBC Counsellor · KARE · ASP/CSE" };
 const REGISTRAR = { name: "Dr. V. Vasudevan", role: "Registrar" };
 const STUDENT_COORDINATORS = [
-  { name: "L. Harsha Vardhan", phone: "+91 91005 50609", phoneRaw: "+919100550609" },
-  { name: "P. Harshika Suryanjali", phone: "+91 95027 95304", phoneRaw: "+919502795304" },
+  { name: "L. Harsha Vardhan", role: "Student Coordinator", phone: "+91 91005 50609", phoneRaw: "+919100550609" },
+  { name: "P. Harshika Suryanjali", role: "Student Coordinator", phone: "+91 95027 95304", phoneRaw: "+919502795304" },
+  { name: "S. Thaha", role: "Student Coordinator", phone: "+91 78933 40788", phoneRaw: "+917893340788" },
+  { name: "G. Umesh Chandra", role: "Student Coordinator", phone: "+91 95738 61418", phoneRaw: "+919573861418" },
+];
+const FACULTY_CONTACTS = [
+  { name: "Dr. P. Chinnasamy", phone: "+91 96002 81664", phoneRaw: "+919600281664" },
+  { name: "Dr. R. Raja Sekar", phone: "+91 63821 72610", phoneRaw: "+916382172610" },
 ];
 
 const buildDraft = (data) => ({ ...emptyDraft, ...data });
 
 const mediaUrl = (path) => path ? (path.startsWith("http") ? path : `${API}/media/${path}`) : null;
+
+const formatEventDates = (startsAt, endsAt) => {
+  if (!startsAt) return null;
+  try {
+    const s = new Date(startsAt);
+    const e = endsAt ? new Date(endsAt) : null;
+    const opts = { day: "numeric", month: "short", year: "numeric" };
+    const timeOpts = { hour: "2-digit", minute: "2-digit" };
+    const startStr = s.toLocaleDateString("en-IN", opts);
+    if (e && (s.toDateString() !== e.toDateString())) {
+      return `${s.toLocaleDateString("en-IN", { day: "numeric", month: "short" })} – ${e.toLocaleDateString("en-IN", opts)} · ${s.toLocaleTimeString("en-IN", timeOpts)} start`;
+    }
+    return `${startStr} · ${s.toLocaleTimeString("en-IN", timeOpts)}`;
+  } catch { return null; }
+};
+
+function Countdown({ target, label = "Kick-off in" }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    if (!target) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [target]);
+  if (!target) return null;
+  const diff = Math.max(0, new Date(target).getTime() - now);
+  const seconds = Math.floor(diff / 1000);
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
+  const secs = seconds % 60;
+  const pad = (n) => String(n).padStart(2, "0");
+  const done = diff === 0;
+  return (
+    <div className={`countdown ${done ? "countdown-live" : ""}`} data-testid="countdown">
+      <span className="countdown-label">{done ? "The Hackathon has started" : label}</span>
+      <div className="countdown-units">
+        <div className="countdown-unit"><strong data-testid="countdown-days">{pad(days)}</strong><span>Days</span></div>
+        <div className="countdown-unit"><strong data-testid="countdown-hours">{pad(hours)}</strong><span>Hours</span></div>
+        <div className="countdown-unit"><strong data-testid="countdown-minutes">{pad(mins)}</strong><span>Minutes</span></div>
+        <div className="countdown-unit"><strong data-testid="countdown-seconds">{pad(secs)}</strong><span>Seconds</span></div>
+      </div>
+    </div>
+  );
+}
 
 /* ---------- Intro ---------- */
 function Intro({ clubs, onSkip }) {
@@ -84,12 +134,13 @@ function Landing() {
     return () => { alive = false; };
   }, []);
 
-  const hackathonName = hackathon?.name || "[HACKATHON_NAME]";
-  const tagline = hackathon?.tagline || "One Hackathon. One Future.";
+  const hackathonName = hackathon?.name || "Hack Odyssey 4.0";
+  const tagline = hackathon?.tagline || "A 24-hour hackathon inside Euphoria 2026.";
   const rules = hackathon?.rules || [];
   const eligibility = hackathon?.eligibility || [];
   const instructions = hackathon?.instructions || [];
   const sdgs = hackathon?.sdgGoals || [];
+  const eventDates = formatEventDates(hackathon?.startsAt, hackathon?.endsAt);
   const clubList = clubs.length ? clubs : Array.from({ length: 5 }).map((_, i) => ({ name: `[CLUB_0${i + 1}]`, slug: `club-0${i + 1}`, displayOrder: i + 1 }));
 
   return (
@@ -108,9 +159,20 @@ function Landing() {
 
       <section className="hero" data-testid="landing-hero">
         <div className="hero-copy">
-          <p className="eyebrow" data-testid="hero-eyebrow">{hackathonName} · Team Registration</p>
-          <h1>Ideas that move<br /><em>the future.</em></h1>
-          <p className="hero-text" data-testid="hero-tagline">{tagline} A single room for bold builders, connected by five student-led communities and a shared ambition to make change tangible.</p>
+          <p className="eyebrow" data-testid="hero-eyebrow">Euphoria 2026 · Team Registration</p>
+          <h1 data-testid="hero-title">{hackathonName}<br /><em>the future.</em></h1>
+          <p className="hero-text" data-testid="hero-tagline">{tagline}</p>
+          {(eventDates || hackathon?.venue || hackathon?.mode || hackathon?.fee || hackathon?.prizePool) && (
+            <ul className="event-chips" data-testid="event-chips">
+              {eventDates && <li data-testid="chip-dates"><span>Dates</span><b>{eventDates}</b></li>}
+              {hackathon?.venue && <li data-testid="chip-venue"><span>Venue</span><b>{hackathon.venue}</b></li>}
+              {hackathon?.mode && <li data-testid="chip-mode"><span>Mode</span><b>{hackathon.mode}</b></li>}
+              {hackathon?.fee && <li data-testid="chip-fee"><span>Fee</span><b>{hackathon.fee}</b></li>}
+              {hackathon?.prizePool && <li data-testid="chip-prize"><span>Prize</span><b>{hackathon.prizePool}</b></li>}
+              {hackathon?.sponsoredBy && <li data-testid="chip-sponsor"><span>Sponsor</span><b>{hackathon.sponsoredBy}</b></li>}
+            </ul>
+          )}
+          <Countdown target={hackathon?.startsAt} />
           <button className="gold-button" onClick={() => navigate("/register")} data-testid="hero-register-button">Register your team <span>↗</span></button>
         </div>
         <div className="hero-mark" aria-hidden="true">
@@ -188,6 +250,19 @@ function Landing() {
                   <div>
                     <strong>{s.name}</strong>
                     <span>{s.phone}</span>
+                  </div>
+                  <i>↗</i>
+                </a>
+              ))}
+            </div>
+            <p className="accordion-label" style={{ marginTop: 36 }}>Faculty contact</p>
+            <div className="student-coord-list">
+              {FACULTY_CONTACTS.map((f) => (
+                <a key={f.phoneRaw} href={`tel:${f.phoneRaw}`} className="student-coord-card faculty-contact-card" data-testid={`faculty-contact-${f.phoneRaw}`}>
+                  <div className="coord-avatar">{f.name.split(" ").map((p) => p[0]).slice(0, 2).join("")}</div>
+                  <div>
+                    <strong>{f.name}</strong>
+                    <span>{f.phone}</span>
                   </div>
                   <i>↗</i>
                 </a>

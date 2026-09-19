@@ -21,10 +21,29 @@ def _logo_url(path: str | None) -> str | None:
 
 @router.get("/hackathon")
 async def get_hackathon(session: AsyncSession = Depends(get_db)):
+    import os
     hackathon = await session.scalar(select(Hackathon).where(Hackathon.is_active.is_(True)).limit(1))
     if hackathon is None:
         raise HTTPException(status_code=404, detail={"code": "HACKATHON_NOT_CONFIGURED", "message": "Hackathon content is not configured."})
-    return {"success": True, "data": {"name": hackathon.name, "tagline": hackathon.tagline, "description": hackathon.description, "logoUrl": _logo_url(hackathon.logo_url), "rules": hackathon.rules or [], "eligibility": hackathon.eligibility or [], "instructions": hackathon.instructions or [], "sdgGoals": hackathon.sdg_goals or [], "whatsappUrl": hackathon.whatsapp_url}}
+    return {"success": True, "data": {
+        "name": hackathon.name,
+        "tagline": hackathon.tagline,
+        "description": hackathon.description,
+        "logoUrl": _logo_url(hackathon.logo_url),
+        "rules": hackathon.rules or [],
+        "eligibility": hackathon.eligibility or [],
+        "instructions": hackathon.instructions or [],
+        "sdgGoals": hackathon.sdg_goals or [],
+        "whatsappUrl": hackathon.whatsapp_url,
+        "startsAt": os.getenv("HACKATHON_START_AT"),
+        "endsAt": os.getenv("HACKATHON_END_AT"),
+        "venue": os.getenv("HACKATHON_VENUE"),
+        "mode": os.getenv("HACKATHON_MODE"),
+        "fee": os.getenv("HACKATHON_FEE"),
+        "prizePool": os.getenv("HACKATHON_PRIZE_POOL"),
+        "sponsoredBy": os.getenv("HACKATHON_SPONSORED_BY"),
+        "host": os.getenv("HACKATHON_HOST"),
+    }}
 
 
 @router.get("/clubs")

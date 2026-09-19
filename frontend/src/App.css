@@ -74,6 +74,7 @@ button { cursor: pointer; }
 .ring-b { width: 71%; height: 71%; border-top-color: var(--gold-bright); border-bottom-color: transparent; animation-direction: reverse; animation-duration: 17s; }
 .mark-core { width: 130px; height: 130px; border: 1px solid var(--gold); border-radius: 50%; display: grid; place-items: center; text-align: center; font-weight: 800; font-size: 28px; line-height: .75; letter-spacing: .12em; color: var(--gold-bright); box-shadow: 0 0 65px rgba(213, 169, 79, .18); }
 .mark-core small { font: 11px 'DM Mono', monospace; color: var(--muted); letter-spacing: .2em; }
+.hackathon-logo { width: 180px; height: 180px; object-fit: contain; border: 1px solid var(--gold); background: rgba(247, 237, 218, .92); padding: 18px; box-shadow: 0 0 65px rgba(213, 169, 79, .18); }
 .scroll-hint { position: absolute; bottom: 42px; left: 9vw; color: var(--muted); font: 10px 'DM Mono', monospace; letter-spacing: .12em; text-transform: uppercase; }
 .scroll-hint span { color: var(--gold); font-size: 18px; margin-left: 10px; }
 
@@ -89,7 +90,7 @@ button { cursor: pointer; }
 .club-logo { height: 164px; display: grid; place-items: center; margin-bottom: 24px; }
 .club-logo-image { width: min(100%, 176px); height: 132px; object-fit: contain; display: block; padding: 12px; background: var(--cream); border: 1px solid rgba(213, 169, 79, .45); box-shadow: 0 18px 40px rgba(0, 0, 0, .22); }
 .club-logo-image.wide { width: min(100%, 198px); height: 132px; padding: 10px; }
-.club-logo-image.club-logo-gfg-kare { padding: 8px; background: #fff; object-position: center; }
+.club-logo-image.club-logo-gfg-kare { width: min(100%, 164px); height: 164px; padding: 0; background: #000; object-fit: contain; object-position: center; }
 .club-logo-image.club-logo-ieee-eds { padding: 8px; }
 .club-logo-image.club-logo-gdg-kare { padding: 8px; }
 .club-logo-image.compact { width: 100%; height: 100%; max-width: 100%; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; object-fit: contain; }
@@ -142,8 +143,9 @@ button { cursor: pointer; }
   .student-coord-card { grid-template-columns: 50px 1fr 16px; gap: 12px; padding: 18px; }
   .coord-avatar { width: 46px; height: 46px; font-size: 13px; }
 }
-.sdg-row { min-height: 76px; display: grid; grid-template-columns: 90px 1fr 30px; align-items: center; border-bottom: 1px solid var(--line); gap: 20px; }
+.sdg-row { min-height: 76px; display: grid; grid-template-columns: 58px 90px 1fr 30px; align-items: center; border-bottom: 1px solid var(--line); gap: 20px; }
 .sdg-row span { font: 11px 'DM Mono', monospace; color: var(--gold); }
+.sdg-icon { width: 42px; height: 42px; display: grid; place-items: center; border: 1px solid var(--gold); background: rgba(213, 169, 79, .12); color: var(--gold-bright) !important; font-weight: 700 !important; }
 .sdg-row strong { font-size: 15px; letter-spacing: .04em; }
 .sdg-row i { font-style: normal; color: var(--gold); text-align: right; }
 

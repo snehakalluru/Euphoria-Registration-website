@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -72,7 +73,9 @@ async def post_registration(payload: RegistrationSubmission, session: AsyncSessi
     try:
         created = await create_registration(session, payload)
     except RegistrationServiceError as exc:
-        raise HTTPException(status_code=409 if exc.code.endswith(("EXISTS", "REGISTERED")) else 400, detail={"code": exc.code, "message": exc.message}) from exc
+        http_status = status.HTTP_409_CONFLICT if exc.code.startswith("DUPLICATE_") else status.HTTP_503_SERVICE_UNAVAILABLE if exc.code == "DATABASE_UNAVAILABLE" else status.HTTP_400_BAD_REQUEST
+        error = {"code": exc.code, "message": exc.message}
+        return JSONResponse(status_code=http_status, content={"error": error, "detail": error})
     public = PublicRegistrationResponse(registration_id=created.team.registration_id, team_name=created.team.team_name, member_count=created.team.member_count, submitted_at=created.team.submitted_at, whatsapp_url=created.hackathon.whatsapp_url)
     return RegistrationCreatedResponse(data=public)
 

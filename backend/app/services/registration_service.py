@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from uuid import uuid4
 
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import AccommodationType, CollegeType, Hackathon, RegistrationStatus, Team, TeamMember
@@ -30,12 +30,64 @@ def generate_registration_id() -> str:
     return "EUH26-" + "".join(secrets.choice(alphabet) for _ in range(6))
 
 
-async def create_registration(session: AsyncSession, payload: RegistrationSubmission) -> CreatedRegistration:
-    hackathon_result = await session.execute(select(Hackathon).where(Hackathon.is_active.is_(True)).limit(1))
-    hackathon = hackathon_result.scalar_one_or_none()
-    if hackathon is None:
-        raise RegistrationServiceError("HACKATHON_NOT_CONFIGURED", "The active hackathon is not configured.")
+CONSTRAINT_ERRORS = {
+    "uq_teams_hackathon_team_name": ("DUPLICATE_TEAM", "A team with this name has already been registered."),
+    "uq_team_members_hackathon_euphoria": ("DUPLICATE_EUPHORIA_ID", "This Euphoria ID has already been registered."),
+    "uq_team_members_hackathon_email": ("DUPLICATE_EMAIL", "This email has already been registered."),
+    "uq_team_members_hackathon_phone": ("DUPLICATE_PHONE", "This phone number has already been registered."),
+    "uq_team_members_hackathon_registration": ("DUPLICATE_REGISTRATION_NUMBER", "This registration number has already been registered."),
+    "uq_team_members_team_member_number": ("DUPLICATE_MEMBER_POSITION", "This team member position is duplicated."),
+}
+REGISTRATION_ID_CONSTRAINTS = {"teams_registration_id_key", "uq_teams_registration_id"}
+SQLITE_UNIQUE_ERRORS = {
+    ("teams.hackathon_id", "teams.team_name_normalized"): "uq_teams_hackathon_team_name",
+    ("team_members.hackathon_id", "team_members.euphoria_id_normalized"): "uq_team_members_hackathon_euphoria",
+    ("team_members.hackathon_id", "team_members.email_normalized"): "uq_team_members_hackathon_email",
+    ("team_members.hackathon_id", "team_members.phone_normalized"): "uq_team_members_hackathon_phone",
+    ("team_members.hackathon_id", "team_members.registration_number_normalized"): "uq_team_members_hackathon_registration",
+    ("team_members.team_id", "team_members.member_number"): "uq_team_members_team_member_number",
+    ("teams.registration_id",): "uq_teams_registration_id",
+}
 
+
+def _constraint_name(exc: IntegrityError) -> str:
+    details = []
+    current = exc.orig
+    seen = set()
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        details.append(str(current))
+        constraint = getattr(getattr(current, "diag", None), "constraint_name", None)
+        if constraint:
+            return constraint
+        constraint = getattr(current, "constraint_name", None)
+        if constraint:
+            return constraint
+        current = getattr(current, "__cause__", None) or getattr(current, "__context__", None)
+    details.append(str(exc))
+    detail = " ".join(details).lower()
+    for name in (*CONSTRAINT_ERRORS.keys(), *REGISTRATION_ID_CONSTRAINTS):
+        if name.lower() in detail:
+            return name
+    for columns, name in SQLITE_UNIQUE_ERRORS.items():
+        if all(column.lower() in detail for column in columns):
+            return name
+    return ""
+
+
+def _duplicate_error(code: str, message: str) -> RegistrationServiceError:
+    return RegistrationServiceError(code, message)
+
+
+async def _rollback_safely(session: AsyncSession) -> None:
+    if session.in_transaction():
+        try:
+            await session.rollback()
+        except DBAPIError:
+            pass
+
+
+async def create_registration(session: AsyncSession, payload: RegistrationSubmission) -> CreatedRegistration:
     team_name_normalized = normalize_team_name(payload.team_name)
     member_values = {
         "emails": [normalize_email(str(member.email)) for member in payload.members],
@@ -46,60 +98,71 @@ async def create_registration(session: AsyncSession, payload: RegistrationSubmis
     if any(len(values) != len(set(values)) for values in member_values.values()):
         raise RegistrationServiceError("PARTICIPANT_ALREADY_REGISTERED", "A participant appears more than once in this team.")
 
-    duplicate_team = await session.scalar(select(Team.id).where(Team.hackathon_id == hackathon.id, Team.team_name_normalized == team_name_normalized))
-    if duplicate_team:
-        raise RegistrationServiceError("TEAM_NAME_ALREADY_EXISTS", "This team name is already registered.")
+    last_registration_collision = None
+    for _ in range(3):
+        transaction = await session.begin()
+        try:
+            hackathon_result = await session.execute(select(Hackathon).where(Hackathon.is_active.is_(True)).limit(1))
+            hackathon = hackathon_result.scalar_one_or_none()
+            if hackathon is None:
+                raise RegistrationServiceError("HACKATHON_NOT_CONFIGURED", "The active hackathon is not configured.")
 
-    for field_name, values, code, label in (
-        ("email_normalized", member_values["emails"], "EMAIL_ALREADY_REGISTERED", "email"),
-        ("phone_normalized", member_values["phones"], "PHONE_ALREADY_REGISTERED", "phone number"),
-        ("registration_number_normalized", member_values["registration_numbers"], "REGISTRATION_NUMBER_ALREADY_REGISTERED", "registration number"),
-        ("euphoria_id_normalized", member_values["euphoria_ids"], "EUPHORIA_ID_ALREADY_REGISTERED", "Euphoria ID"),
-    ):
-        existing = await session.scalar(
-            select(TeamMember.id)
-            .where(TeamMember.hackathon_id == hackathon.id, getattr(TeamMember, field_name).in_(values))
-            .limit(1)
-        )
-        if existing:
-            raise RegistrationServiceError(code, f"This {label} is already registered.")
+            duplicate_team = await session.scalar(select(Team.id).where(Team.hackathon_id == hackathon.id, Team.team_name_normalized == team_name_normalized))
+            if duplicate_team:
+                raise _duplicate_error("DUPLICATE_TEAM", "A team with this name has already been registered.")
 
-    team = Team(
-        id=uuid4(), hackathon_id=hackathon.id, registration_id=generate_registration_id(), team_name=payload.team_name,
-        team_name_normalized=team_name_normalized, college_type=CollegeType(payload.college_type), college_name=payload.college_name,
-        member_count=len(payload.members), confirmation_accepted=payload.confirmation_accepted, status=RegistrationStatus.SUBMITTED,
-    )
-    session.add(team)
-    for member in payload.members:
-        hostel = member.hostel
-        proof = member.id_proof
-        session.add(TeamMember(
-            id=uuid4(), team_id=team.id, hackathon_id=hackathon.id, member_number=member.member_number,
-            is_team_lead=member.member_number == 1, name=member.name, registration_number=member.registration_number,
-            registration_number_normalized=normalize_identifier(member.registration_number), email=str(member.email),
-            email_normalized=normalize_email(str(member.email)), phone=member.phone, phone_normalized=normalize_phone(member.phone),
-            gender=member.gender, year=member.year, branch=member.branch, section=member.section, euphoria_id=member.euphoria_id,
-            euphoria_id_normalized=normalize_identifier(member.euphoria_id), accommodation_type=AccommodationType(member.accommodation_type) if member.accommodation_type else None,
-            hostel_name=hostel.hostel_name if hostel else None, room_number=hostel.room_number if hostel else None,
-            warden_name=hostel.warden_name if hostel else None, warden_phone=hostel.warden_phone if hostel else None,
-            id_proof_path=proof.path if proof else None,
-            id_proof_filename=proof.filename if proof else None,
-            id_proof_content_type=proof.content_type if proof else None,
-        ))
-    try:
-        await session.commit()
-    except IntegrityError as exc:
-        await session.rollback()
-        detail = str(exc.orig).lower()
-        if "team_name" in detail:
-            raise RegistrationServiceError("TEAM_NAME_ALREADY_EXISTS", "This team name is already registered.") from exc
-        if "euphoria" in detail:
-            raise RegistrationServiceError("EUPHORIA_ID_ALREADY_REGISTERED", "This Euphoria ID is already registered.") from exc
-        if "email" in detail:
-            raise RegistrationServiceError("EMAIL_ALREADY_REGISTERED", "This email is already registered.") from exc
-        if "phone" in detail:
-            raise RegistrationServiceError("PHONE_ALREADY_REGISTERED", "This phone number is already registered.") from exc
-        if "registration" in detail:
-            raise RegistrationServiceError("REGISTRATION_NUMBER_ALREADY_REGISTERED", "This registration number is already registered.") from exc
-        raise RegistrationServiceError("REGISTRATION_FAILED", "The registration could not be completed.") from exc
-    return CreatedRegistration(team=team, hackathon=hackathon)
+            for field_name, values, code, message in (
+                ("email_normalized", member_values["emails"], "DUPLICATE_EMAIL", "This email has already been registered."),
+                ("phone_normalized", member_values["phones"], "DUPLICATE_PHONE", "This phone number has already been registered."),
+                ("registration_number_normalized", member_values["registration_numbers"], "DUPLICATE_REGISTRATION_NUMBER", "This registration number has already been registered."),
+                ("euphoria_id_normalized", member_values["euphoria_ids"], "DUPLICATE_EUPHORIA_ID", "This Euphoria ID has already been registered."),
+            ):
+                existing = await session.scalar(
+                    select(TeamMember.id)
+                    .where(TeamMember.hackathon_id == hackathon.id, getattr(TeamMember, field_name).in_(values))
+                    .limit(1)
+                )
+                if existing:
+                    raise _duplicate_error(code, message)
+
+            team = Team(
+                id=uuid4(), hackathon_id=hackathon.id, registration_id=generate_registration_id(), team_name=payload.team_name,
+                team_name_normalized=team_name_normalized, college_type=CollegeType(payload.college_type), college_name=payload.college_name,
+                member_count=len(payload.members), confirmation_accepted=payload.confirmation_accepted, status=RegistrationStatus.SUBMITTED,
+            )
+            session.add(team)
+            for member in payload.members:
+                hostel = member.hostel
+                proof = member.id_proof
+                session.add(TeamMember(
+                    id=uuid4(), team_id=team.id, hackathon_id=hackathon.id, member_number=member.member_number,
+                    is_team_lead=member.member_number == 1, name=member.name, registration_number=member.registration_number,
+                    registration_number_normalized=normalize_identifier(member.registration_number), email=str(member.email),
+                    email_normalized=normalize_email(str(member.email)), phone=member.phone, phone_normalized=normalize_phone(member.phone),
+                    gender=member.gender, year=member.year, branch=member.branch, section=member.section, euphoria_id=member.euphoria_id,
+                    euphoria_id_normalized=normalize_identifier(member.euphoria_id), accommodation_type=AccommodationType(member.accommodation_type) if member.accommodation_type else None,
+                    hostel_name=hostel.hostel_name if hostel else None, room_number=hostel.room_number if hostel else None,
+                    warden_name=hostel.warden_name if hostel else None, warden_phone=hostel.warden_phone if hostel else None,
+                    id_proof_path=proof.path if proof else None,
+                    id_proof_filename=proof.filename if proof else None,
+                    id_proof_content_type=proof.content_type if proof else None,
+                ))
+            await session.flush()
+            await transaction.commit()
+            return CreatedRegistration(team=team, hackathon=hackathon)
+        except IntegrityError as exc:
+            constraint = _constraint_name(exc)
+            await _rollback_safely(session)
+            if constraint in REGISTRATION_ID_CONSTRAINTS:
+                last_registration_collision = exc
+                continue
+            code, message = CONSTRAINT_ERRORS.get(constraint, ("REGISTRATION_FAILED", "The registration could not be completed."))
+            raise RegistrationServiceError(code, message) from exc
+        except RegistrationServiceError:
+            await _rollback_safely(session)
+            raise
+        except DBAPIError as exc:
+            await _rollback_safely(session)
+            raise RegistrationServiceError("DATABASE_UNAVAILABLE", "The registration service is temporarily unavailable. Please try again.") from exc
+
+    raise RegistrationServiceError("REGISTRATION_FAILED", "The registration could not be completed.") from last_registration_collision

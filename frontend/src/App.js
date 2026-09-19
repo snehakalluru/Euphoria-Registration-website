@@ -61,7 +61,7 @@ const buildDraft = (data) => {
 
 const mediaUrl = (path) => path ? (path.startsWith("http") ? path : `${API}/media/${path}`) : null;
 const CLUB_LOGO_FALLBACKS = {
-  "gfg-kare": "/club-logos/gfg-kare.svg?v=3",
+  "gfg-kare": "/club-logos/gfg-kare.svg?v=4",
   "acm-kare": "/club-logos/acm-kare.svg?v=3",
   "ieee-eds": "/club-logos/ieee-eds.svg?v=3",
   "acm-w-kare": "/club-logos/acm-w-kare.svg?v=3",
@@ -74,6 +74,14 @@ const OFFICIAL_CLUBS = [
   { name: "KARE IEEE Education Society", slug: "ieee-eds", displayOrder: 3 },
   { name: "KARE ACM-W", slug: "acm-w-kare", displayOrder: 4 },
   { name: "Google Developers-KARE", slug: "gdg-kare", displayOrder: 5 },
+];
+const SDG_FALLBACKS = [
+  { code: "SDG 2", title: "Zero Hunger & Sustainable Agriculture", icon: "02" },
+  { code: "SDG 3", title: "Good Health & Well-being Innovation", icon: "03" },
+  { code: "SDG 4", title: "Quality Education & Lifelong Learning", icon: "04" },
+  { code: "SDG 6", title: "Clean Water & Sanitation", icon: "06" },
+  { code: "SDG 11", title: "Sustainable Cities & Communities", icon: "11" },
+  { code: "SDG 13", title: "Climate Action & Environmental Monitoring", icon: "13" },
 ];
 
 const normalizeClub = (club, index) => {
@@ -226,9 +234,13 @@ function Landing() {
   const rules = hackathon?.rules || [];
   const eligibility = hackathon?.eligibility || [];
   const instructions = hackathon?.instructions || [];
-  const sdgs = hackathon?.sdgGoals || [];
+  const sdgs = (hackathon?.sdgGoals?.length ? hackathon.sdgGoals : SDG_FALLBACKS).map((goal) => ({
+    ...goal,
+    icon: goal.icon || goal.code?.replace(/\D/g, "").padStart(2, "0") || "SD",
+  }));
   const eventDates = formatEventDates(hackathon?.startsAt, hackathon?.endsAt);
   const clubList = (clubs.length ? clubs : OFFICIAL_CLUBS).slice(0, 5).map(normalizeClub);
+  const hackathonLogo = mediaUrl(hackathon?.logoUrl);
 
   return (
     <main className="site-shell">
@@ -260,12 +272,12 @@ function Landing() {
             </ul>
           )}
           <Countdown target={hackathon?.startsAt} />
-          <button className="gold-button" onClick={() => navigate("/register")} data-testid="hero-register-button">Register your team <span>↗</span></button>
+          <button className="gold-button" onClick={() => navigate("/register")} data-testid="hero-register-button">Register Now <span>↗</span></button>
         </div>
         <div className="hero-mark" aria-hidden="true">
           <div className="mark-ring ring-a" />
           <div className="mark-ring ring-b" />
-          <div className="mark-core">EU<br /><small>26</small></div>
+          {hackathonLogo ? <img className="hackathon-logo" src={hackathonLogo} alt="" /> : <div className="mark-core">EU<br /><small>26</small></div>}
         </div>
         <div className="scroll-hint">Scroll to explore <span>↓</span></div>
       </section>
@@ -282,12 +294,10 @@ function Landing() {
               <div className="club-number">0{index + 1}</div>
               <div className="club-logo"><ClubLogoImage club={club} index={index} /></div>
               <h3>{club.name}</h3>
-              {(club.facultyInCharge || club.studentInCharge) && (
-                <p className="club-meta">
-                  {club.facultyInCharge && <span>Faculty · {club.facultyInCharge}</span>}
-                  {club.studentInCharge && <span>Student · {club.studentInCharge}</span>}
-                </p>
-              )}
+              <p className="club-meta">
+                <span>Faculty · {club.facultyInCharge || "To be announced"}</span>
+                <span>Student · {club.studentInCharge || "To be announced"}</span>
+              </p>
               <span className="club-arrow">↗</span>
             </article>
           ))}
@@ -391,6 +401,7 @@ function Landing() {
         <div className="sdg-grid">
           {sdgs.map((goal, index) => (
             <div className="sdg-row" key={goal.code || index} data-testid={`sdg-goal-${index + 1}`}>
+              <span className="sdg-icon" aria-hidden="true">{goal.icon}</span>
               <span>{goal.code}</span>
               <strong>{goal.title}</strong>
               <i>↗</i>
@@ -407,8 +418,6 @@ function Landing() {
 
       <footer className="footer">
         <span>© EUPHORIA HACKATHON</span>
-        <span>Development preview · Official details pending</span>
-        <Link to="/admin/login" data-testid="admin-link">Organizer sign-in ↗</Link>
       </footer>
       <a className="built-by-badge" href="#collaboration" data-testid="built-by-badge">
         <span className="built-by-dot" />
@@ -646,18 +655,19 @@ function Success() {
     <main className="success-shell">
       <div className="success-mark">✓</div>
       <p className="eyebrow">Registration received</p>
-      <h1>You're on the list.</h1>
-      <p className="success-copy">Your team has been successfully registered for the Euphoria Hackathon.</p>
+      <h1>Registration Successful! 🎉</h1>
+      <p className="success-copy">Your team has been successfully registered for the hackathon.</p>
       <div className="success-data" data-testid="success-summary">
         <div><span>Registration ID</span><strong data-testid="success-registration-id">{data.registration_id}</strong></div>
         <div><span>Team</span><strong data-testid="success-team-name">{data.team_name}</strong></div>
         <div><span>Members</span><strong data-testid="success-member-count">{data.member_count}</strong></div>
       </div>
       <div className="whatsapp-cta">
-        <p className="eyebrow">Stay in the loop</p>
+        <p className="eyebrow">Join the Official WhatsApp Group</p>
         <p className="success-copy">Join the WhatsApp group to receive important announcements, schedules, instructions and event updates.</p>
         <a className="gold-button" href={data.whatsapp_url || "#"} target="_blank" rel="noreferrer" data-testid="whatsapp-cta-button">Join official WhatsApp group <span>↗</span></a>
       </div>
+      <p className="success-copy">Thank you for registering. We look forward to seeing your team at the hackathon!</p>
       <Link to="/" className="back-link" data-testid="success-home-link">Return to overview</Link>
     </main>
   );

@@ -1,5 +1,6 @@
 from collections.abc import AsyncIterator
 
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.config import get_async_database_url, is_sqlite
@@ -17,6 +18,7 @@ def _build_engine():
         max_overflow=5,
         pool_timeout=30,
         pool_recycle=1800,
+        pool_pre_ping=True,
         echo=False,
         connect_args={"statement_cache_size": 0, "command_timeout": 30},
     )
@@ -42,4 +44,9 @@ async def get_db() -> AsyncIterator[AsyncSession]:
         try:
             yield session
         finally:
+            if session.in_transaction():
+                try:
+                    await session.rollback()
+                except DBAPIError:
+                    pass
             await session.close()

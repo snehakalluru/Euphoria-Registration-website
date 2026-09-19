@@ -1,11 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4548 3900" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1800 1500" role="img" aria-labelledby="title desc">
   <title id="title">GFG Campus Body KARE</title>
-  <desc id="desc">Current green GeeksforGeeks double G mark on white</desc>
-  <rect width="4548" height="3900" fill="#fff"/>
-  <g fill="none" stroke="#2f8e46" stroke-width="142" stroke-linecap="butt" transform="translate(80 0) scale(3.12)">
+  <desc id="desc">Green GeeksforGeeks mark with Campus Body KARE in white text.</desc>
+  <rect width="1800" height="1500" fill="#000"/>
+  <g fill="none" stroke="#2f9148" stroke-width="146" stroke-linecap="butt" transform="translate(155 54) scale(1.065)">
     <path d="M632 198C551 111 431 71 309 105C137 153 36 331 84 503C132 675 311 776 482 728C579 701 653 627 684 535"/>
     <path d="M768 198C849 111 969 71 1091 105C1263 153 1364 331 1316 503C1268 675 1089 776 918 728C821 701 747 627 716 535"/>
     <path d="M162 360H700"/>
     <path d="M700 360H1238"/>
   </g>
+  <text x="900" y="1056" text-anchor="middle" fill="#2f9148" font-family="Arial, Helvetica, sans-serif" font-size="196" font-weight="800" letter-spacing="9">GFG</text>
+  <text x="900" y="1212" text-anchor="middle" fill="#fff" font-family="Arial, Helvetica, sans-serif" font-size="118" font-weight="800" letter-spacing="7">CAMPUS BODY</text>
+  <text x="900" y="1350" text-anchor="middle" fill="#fff" font-family="Arial, Helvetica, sans-serif" font-size="118" font-weight="800" letter-spacing="7">KARE</text>
 </svg>

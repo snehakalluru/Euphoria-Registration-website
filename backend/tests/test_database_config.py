@@ -37,3 +37,27 @@ def test_sync_postgres_url_converts_asyncpg_ssl_to_psycopg_sslmode(monkeypatch):
     assert config.get_sync_database_url() == (
         "postgresql://user:pass@example.supabase.co:6543/postgres?sslmode=require"
     )
+
+
+def test_cors_origins_include_current_and_existing_production_origins(monkeypatch):
+    monkeypatch.setenv("CORS_ORIGINS", "https://custom.example.com")
+
+    origins = config.get_cors_origins()
+
+    assert "https://custom.example.com" in origins
+    assert "https://euphoria-registration-website-zzhy-jet.vercel.app" in origins
+    assert "https://euphoria-registration.vercel.app" in origins
+    assert "*" not in origins
+
+
+def test_cors_origins_parse_json_and_normalize_trailing_slashes(monkeypatch):
+    monkeypatch.setenv(
+        "CORS_ORIGINS",
+        '["https://euphoria-registration-website-zzhy-jet.vercel.app/", "https://euphoria-registration.vercel.app/"]',
+    )
+
+    origins = config.get_cors_origins()
+
+    assert "https://euphoria-registration-website-zzhy-jet.vercel.app" in origins
+    assert "https://euphoria-registration-website-zzhy-jet.vercel.app/" not in origins
+    assert "https://euphoria-registration.vercel.app" in origins

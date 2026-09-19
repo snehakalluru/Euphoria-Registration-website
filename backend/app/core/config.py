@@ -1,10 +1,57 @@
 import os
+import json
 from pathlib import Path
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).resolve().parents[2] / ".env")
+
+
+DEFAULT_CORS_ORIGINS = (
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "https://euphoria-registration.vercel.app",
+    "https://euphoria-registration-website-zzhy-jet.vercel.app",
+)
+
+
+def _normalize_origin(value: str) -> str:
+    return value.strip().strip("\"'").rstrip("/")
+
+
+def parse_cors_origins(value: str | None) -> list[str]:
+    if not value or not value.strip():
+        return list(DEFAULT_CORS_ORIGINS)
+
+    raw = value.strip()
+    parsed: list[str] = []
+    if raw.startswith("["):
+        try:
+            loaded = json.loads(raw)
+            if isinstance(loaded, list):
+                parsed = [str(item) for item in loaded]
+        except json.JSONDecodeError:
+            parsed = []
+
+    if not parsed:
+        parsed = raw.replace("\n", ",").split(",")
+
+    origins = []
+    for item in parsed:
+        origin = _normalize_origin(item)
+        if origin and origin != "*" and origin not in origins:
+            origins.append(origin)
+
+    for origin in DEFAULT_CORS_ORIGINS:
+        if origin not in origins:
+            origins.append(origin)
+
+    return origins
+
+
+def get_cors_origins() -> list[str]:
+    return parse_cors_origins(os.getenv("CORS_ORIGINS"))
 
 
 def get_app_env() -> str:

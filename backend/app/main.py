@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select, text
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.core.config import is_sqlite
+from app.core.config import get_cors_origins, is_sqlite
 from app.core.database import get_engine, get_session_factory
 from app.core.security import hash_password
 from app.models import Admin, Base, Club, Hackathon
@@ -154,13 +154,10 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(title="Euphoria Hackathon Registration API", version="1.0.0", lifespan=lifespan)
 
-default_dev_origins = "http://localhost:3000,http://127.0.0.1:3000"
-origins_raw = os.getenv("CORS_ORIGINS", default_dev_origins)
-origins = ["*"] if origins_raw.strip() == "*" else [origin.strip().rstrip("/") for origin in origins_raw.split(",") if origin.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True if origins != ["*"] else False,
+    allow_origins=get_cors_origins(),
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )

@@ -37,7 +37,7 @@ DEV_SDG_GOALS = [
     {"code": "SDG 13", "title": "Climate Action & Environmental Monitoring"},
 ]
 DEV_CLUBS = [
-    {"name": "GDG On Campus · KARE", "slug": "gdg-kare", "display_order": 1, "description": "Google Developer Groups On Campus at KARE — flagship organiser", "logo_url": "https://customer-assets-eiarnc6j.emergentagent.net/job_12145b8e-9780-481f-b432-98049080e6cc/artifacts/kwb4jxde_GFG%20LOGO.webp"},
+    {"name": "GFG Campus Body · KARE", "slug": "gfg-kare", "display_order": 1, "description": "GeeksforGeeks Campus Body at KARE — flagship organiser", "logo_url": "https://customer-assets-eiarnc6j.emergentagent.net/job_12145b8e-9780-481f-b432-98049080e6cc/artifacts/kwb4jxde_GFG%20LOGO.webp"},
     {"name": "KARE ACM Student Chapter", "slug": "acm-kare", "display_order": 2, "description": "Association for Computing Machinery · KARE student chapter", "logo_url": "https://customer-assets-eiarnc6j.emergentagent.net/job_12145b8e-9780-481f-b432-98049080e6cc/artifacts/zaogaxa6_WhatsApp%20Image%202026-09-09%20at%209.58.21%20PM%20%282%29.jpeg"},
     {"name": "KARE IEEE Education Society", "slug": "ieee-eds", "display_order": 3, "description": "IEEE Education Society · KARE chapter", "logo_url": "https://customer-assets-eiarnc6j.emergentagent.net/job_12145b8e-9780-481f-b432-98049080e6cc/artifacts/qop5o1eu_WhatsApp%20Image%202026-09-09%20at%209.58.21%20PM%20%281%29.jpeg"},
     {"name": "KARE ACM-W", "slug": "acm-w-kare", "display_order": 4, "description": "ACM's committee for women in computing at KARE", "logo_url": "https://customer-assets-eiarnc6j.emergentagent.net/job_12145b8e-9780-481f-b432-98049080e6cc/artifacts/8f6z2auc_WhatsApp%20Image%202026-09-09%20at%209.58.21%20PM.jpeg"},

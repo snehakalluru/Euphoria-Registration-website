@@ -182,7 +182,7 @@ function Landing() {
       </footer>
       <a className="built-by-badge" href="#collaboration" data-testid="built-by-badge">
         <span className="built-by-dot" />
-        <span>Built by <b>GDG On Campus · KARE</b></span>
+        <span>Built by <b>GFG Campus Body · KARE</b></span>
       </a>
     </main>
   );

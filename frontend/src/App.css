@@ -279,7 +279,8 @@ button { cursor: pointer; }
 }
 @media (max-width: 560px) {
   .hero h1 { font-size: 58px; }
-  .hero-mark { width: 220px; top: 210px; right: -55px; }
+  .hero { overflow: hidden; }
+  .hero-mark { width: 220px; top: 210px; right: -60px; opacity: .32; }
   .scroll-hint { left: 24px; }
   .club-grid { grid-template-columns: 1fr; }
   .club-card:last-child { grid-column: auto; }

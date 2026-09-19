@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from uuid import uuid4
 
 from sqlalchemy import select
-from sqlalchemy.exc import DBAPIError, IntegrityError
+from sqlalchemy.exc import DBAPIError, IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import AccommodationType, CollegeType, Hackathon, RegistrationStatus, Team, TeamMember
@@ -83,7 +83,7 @@ async def _rollback_safely(session: AsyncSession) -> None:
     if session.in_transaction():
         try:
             await session.rollback()
-        except DBAPIError:
+        except Exception:
             pass
 
 
@@ -100,8 +100,8 @@ async def create_registration(session: AsyncSession, payload: RegistrationSubmis
 
     last_registration_collision = None
     for _ in range(3):
-        transaction = await session.begin()
         try:
+            transaction = await session.begin()
             hackathon_result = await session.execute(select(Hackathon).where(Hackathon.is_active.is_(True)).limit(1))
             hackathon = hackathon_result.scalar_one_or_none()
             if hackathon is None:
@@ -162,6 +162,9 @@ async def create_registration(session: AsyncSession, payload: RegistrationSubmis
             await _rollback_safely(session)
             raise
         except DBAPIError as exc:
+            await _rollback_safely(session)
+            raise RegistrationServiceError("DATABASE_UNAVAILABLE", "The registration service is temporarily unavailable. Please try again.") from exc
+        except (SQLAlchemyError, OSError, RuntimeError) as exc:
             await _rollback_safely(session)
             raise RegistrationServiceError("DATABASE_UNAVAILABLE", "The registration service is temporarily unavailable. Please try again.") from exc
 

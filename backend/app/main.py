@@ -1,9 +1,12 @@
 import os
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import select
+from sqlalchemy import select, text
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.config import is_sqlite
 from app.core.database import get_engine, get_session_factory
@@ -13,6 +16,8 @@ from app.routes.public import router as public_router
 from app.routes.admin import router as admin_router
 from app.routes.uploads import router as uploads_router
 from app.services.storage import init_storage
+
+logger = logging.getLogger(__name__)
 
 
 DEV_RULES = [
@@ -58,7 +63,7 @@ for club in DEV_CLUBS:
         club["name"], club["description"] = label
 
 
-async def seed_dev_data():
+async def seed_initial_data():
     factory = get_session_factory()
     async with factory() as session:
         hackathon = await session.scalar(select(Hackathon).where(Hackathon.is_active.is_(True)))
@@ -113,26 +118,45 @@ async def seed_dev_data():
         await session.commit()
 
 
+async def prepare_database():
+    """Create required tables and seed baseline content for fresh deployments.
+
+    Alembic remains the preferred production migration path, but hosted previews often
+    boot against an empty database. This keeps first deployment from accepting traffic
+    with no active hackathon row, clubs, or admin account.
+    """
+    engine = get_engine()
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+        if not is_sqlite():
+            await conn.execute(text("ALTER TABLE team_members ADD COLUMN IF NOT EXISTS id_proof_path text"))
+            await conn.execute(text("ALTER TABLE team_members ADD COLUMN IF NOT EXISTS id_proof_filename varchar(200)"))
+            await conn.execute(text("ALTER TABLE team_members ADD COLUMN IF NOT EXISTS id_proof_content_type varchar(80)"))
+    await seed_initial_data()
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    engine = get_engine()
-    if is_sqlite():
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-        await seed_dev_data()
+    engine = None
+    try:
+        await prepare_database()
+        engine = get_engine()
+    except Exception as exc:
+        logger.exception("Database bootstrap failed at startup: %s", exc)
     try:
         init_storage()
     except Exception as exc:  # storage not fatal for boot
-        import logging
-        logging.getLogger(__name__).warning("Storage init failed at startup: %s", exc)
+        logger.warning("Storage init failed at startup: %s", exc)
     yield
-    await engine.dispose()
+    if engine is not None:
+        await engine.dispose()
 
 
 app = FastAPI(title="Euphoria Hackathon Registration API", version="1.0.0", lifespan=lifespan)
 
-origins_raw = os.getenv("CORS_ORIGINS", "*")
-origins = ["*"] if origins_raw.strip() == "*" else [origin.strip() for origin in origins_raw.split(",") if origin.strip()]
+default_dev_origins = "http://localhost:3000,http://127.0.0.1:3000"
+origins_raw = os.getenv("CORS_ORIGINS", default_dev_origins)
+origins = ["*"] if origins_raw.strip() == "*" else [origin.strip().rstrip("/") for origin in origins_raw.split(",") if origin.strip()]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -143,6 +167,18 @@ app.add_middleware(
 app.include_router(public_router)
 app.include_router(admin_router)
 app.include_router(uploads_router)
+
+
+@app.exception_handler(SQLAlchemyError)
+async def sqlalchemy_exception_handler(_, exc):
+    logger.exception("Unhandled database error: %s", exc)
+    error = {"code": "DATABASE_UNAVAILABLE", "message": "The registration service is temporarily unavailable. Please try again."}
+    return JSONResponse(status_code=503, content={"success": False, "detail": error, "error": error})
+
+
+@app.get("/")
+async def root():
+    return {"success": True, "service": "euphoria-registration-api", "health": "/api/health"}
 
 
 @app.get("/api/health")

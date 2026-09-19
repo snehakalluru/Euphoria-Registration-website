@@ -6,6 +6,12 @@ This project was bootstrapped with [Create React App](https://github.com/faceboo
 
 In the project directory, you can run:
 
+## Vercel Deployment
+
+Set `BACKEND_URL` in the Vercel project environment to the deployed FastAPI backend URL, for example `https://your-backend.example.com`.
+
+The frontend calls `/api/...` in production. The Vercel function in `api/[...path].js` forwards those requests to `${BACKEND_URL}/api/...`, so registrations keep working without rebuilding the React bundle for every backend URL change.
+
 ### `npm start`
 
 Runs the app in the development mode.\

@@ -96,6 +96,18 @@ def test_first_valid_registration_returns_201(registration_client):
     assert asyncio.run(_counts(factory)) == (1, 4)
 
 
+def test_hackathon_content_route_uses_database_session(registration_client):
+    client, _ = registration_client
+
+    response = asyncio.run(client.get("/api/hackathon"))
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["success"] is True
+    assert body["data"]["name"] == "Test Hackathon"
+    assert "sdgGoals" in body["data"]
+
+
 def test_same_payload_returns_duplicate_team_409(registration_client):
     client, factory = registration_client
     payload = _payload("DUPTEAM1")

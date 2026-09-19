@@ -1,6 +1,7 @@
 from collections.abc import AsyncIterator
 
-from sqlalchemy.exc import DBAPIError
+from fastapi import HTTPException, status
+from sqlalchemy.exc import DBAPIError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.config import get_async_database_url, is_sqlite
@@ -39,7 +40,16 @@ def get_session_factory():
 
 
 async def get_db() -> AsyncIterator[AsyncSession]:
-    factory = get_session_factory()
+    try:
+        factory = get_session_factory()
+    except (RuntimeError, OSError, SQLAlchemyError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "code": "DATABASE_UNAVAILABLE",
+                "message": "The registration service is temporarily unavailable. Please try again.",
+            },
+        ) from exc
     async with factory() as session:
         try:
             yield session

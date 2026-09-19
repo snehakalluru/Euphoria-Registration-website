@@ -41,6 +41,21 @@ def _with_query_default(url: str, key: str, value: str, aliases: set[str] | None
     return urlunsplit((parsed.scheme, parsed.netloc, parsed.path, urlencode(query), parsed.fragment))
 
 
+def _rename_query_key(url: str, old_key: str, new_key: str) -> str:
+    parsed = urlsplit(url)
+    query = parse_qsl(parsed.query, keep_blank_values=True)
+    has_new_key = any(item_key.lower() == new_key.lower() for item_key, _ in query)
+    normalized = []
+    for item_key, item_value in query:
+        if item_key.lower() == old_key.lower():
+            if not has_new_key:
+                normalized.append((new_key, item_value))
+                has_new_key = True
+            continue
+        normalized.append((item_key, item_value))
+    return urlunsplit((parsed.scheme, parsed.netloc, parsed.path, urlencode(normalized), parsed.fragment))
+
+
 def get_async_database_url() -> str:
     url = get_database_url()
     if url.startswith("sqlite:") and not url.startswith("sqlite+aiosqlite"):
@@ -48,7 +63,8 @@ def get_async_database_url() -> str:
     if url.startswith("postgresql://") and "+asyncpg" not in url:
         url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
     if url.startswith("postgresql+asyncpg://"):
-        return _with_query_default(url, "ssl", "require", aliases={"sslmode"})
+        url = _rename_query_key(url, "sslmode", "ssl")
+        return _with_query_default(url, "ssl", "require")
     return url
 
 
@@ -59,5 +75,6 @@ def get_sync_database_url() -> str:
     if url.startswith("postgresql+asyncpg://"):
         url = url.replace("postgresql+asyncpg://", "postgresql://", 1)
     if url.startswith("postgresql://"):
-        return _with_query_default(url, "sslmode", "require", aliases={"ssl"})
+        url = _rename_query_key(url, "ssl", "sslmode")
+        return _with_query_default(url, "sslmode", "require")
     return url

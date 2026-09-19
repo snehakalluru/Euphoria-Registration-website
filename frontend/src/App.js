@@ -7,14 +7,53 @@ const getBackendUrl = () => {
   const configuredUrl = process.env.REACT_APP_BACKEND_URL?.trim();
   if (configuredUrl) return configuredUrl.replace(/\/+$/, "");
 
-  if (typeof window !== "undefined" && window.location.hostname === "localhost") {
+  if (typeof window !== "undefined" && ["localhost", "127.0.0.1"].includes(window.location.hostname)) {
     return "http://localhost:8000";
+  }
+
+  if (typeof window !== "undefined" && process.env.NODE_ENV === "production") {
+    return window.location.origin;
   }
 
   return typeof window !== "undefined" ? window.location.origin : "";
 };
 
-const API = `${getBackendUrl()}/api`;
+const BACKEND_URL = getBackendUrl();
+const API = BACKEND_URL ? `${BACKEND_URL}/api` : "";
+const apiUrl = (path) => {
+  if (!API) {
+    throw new Error("Backend URL is not configured. Set REACT_APP_BACKEND_URL to your backend deployment URL and redeploy the frontend.");
+  }
+  return `${API}${path}`;
+};
+const humanizeErrorCode = (value) => {
+  if (!value) return "";
+  return String(value)
+    .replace(/^Value error,\s*/i, "")
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+};
+const errorMessageFrom = (error, fallback = "Please review the highlighted information and try again.") => {
+  if (error?.message?.includes("Backend URL is not configured")) return error.message;
+  const data = error?.response?.data;
+  if (typeof data === "string" && data.trim().startsWith("<!doctype")) {
+    return "The frontend received an HTML page instead of an API response. Check that the deployed /api proxy is included and BACKEND_URL is configured.";
+  }
+  const detail = data?.detail || data?.error;
+  if (typeof detail === "string") return detail;
+  if (detail?.message) return detail.message;
+  if (detail?.code) return humanizeErrorCode(detail.code);
+  if (Array.isArray(detail)) {
+    const validationCode = detail.find((item) => item?.ctx?.error || item?.msg)?.ctx?.error || detail.find((item) => item?.msg)?.msg;
+    if (validationCode) return humanizeErrorCode(validationCode);
+  }
+  if (data?.message) return data.message;
+  if (error?.response?.status === 404) return "Backend API was not found. Check REACT_APP_BACKEND_URL and redeploy the frontend.";
+  if (error?.response?.status >= 500) return "The registration service is temporarily unavailable. Please try again.";
+  if (error?.request) return "Could not reach the backend. Check REACT_APP_BACKEND_URL and backend CORS settings.";
+  return fallback;
+};
 
 /* ---------- helpers ---------- */
 const blankMember = (number) => ({ member_number: number, name: "", registration_number: "", email: "", phone: "", gender: "", year: "N/A", branch: "N/A", section: "N/A", euphoria_id: "", accommodation_type: "day_scholar", hostel: null });
@@ -59,8 +98,8 @@ const buildDraft = (data) => {
   return { ...merged, members: (merged.members || emptyDraft.members).map(normalizeMemberDraft) };
 };
 
-const mediaUrl = (path) => path ? (path.startsWith("http") ? path : `${API}/media/${path}`) : null;
-const GFG_LOGO_URL = process.env.REACT_APP_GFG_LOGO_URL?.trim() || "https://customer-assets-eiarnc6j.emergentagent.net/job_12145b8e-9780-481f-b432-98049080e6cc/artifacts/kwb4jxde_GFG%20LOGO.webp";
+const mediaUrl = (path) => path ? (path.startsWith("http") ? path : API ? `${API}/media/${path}` : null) : null;
+const GFG_LOGO_URL = process.env.REACT_APP_GFG_LOGO_URL?.trim() || "/club-logos/gfg-kare.svg?v=3";
 const CLUB_LOGO_FALLBACKS = {
   "gfg-kare": GFG_LOGO_URL,
   "acm-kare": "/club-logos/acm-kare.svg?v=3",
@@ -123,7 +162,8 @@ const getClubLogoFallback = (club, index = 0) => {
 function ClubLogoImage({ club, index, compact = false }) {
   const fallback = getClubLogoFallback(club, index);
   const slug = (club?.slug || "").toLowerCase();
-  const logoSrc = mediaUrl(club?.logoUrl) || fallback;
+  const remoteLogo = mediaUrl(club?.logoUrl);
+  const logoSrc = remoteLogo?.includes("customer-assets-eiarnc6j.emergentagent.net") ? fallback : remoteLogo || fallback;
   const [src, setSrc] = useState(logoSrc);
   const wideLogo = ["gfg-kare", "ieee-eds", "gdg-kare"].includes(slug);
   useEffect(() => {
@@ -224,7 +264,7 @@ function Landing() {
 
   useEffect(() => {
     let alive = true;
-    Promise.all([axios.get(`${API}/hackathon`).catch(() => null), axios.get(`${API}/clubs`).catch(() => null)]).then(([h, c]) => {
+    Promise.all([axios.get(apiUrl("/hackathon")).catch(() => null), axios.get(apiUrl("/clubs")).catch(() => null)]).then(([h, c]) => {
       if (!alive) return;
       setHackathon(h?.data?.data || null);
       setClubs(c?.data?.data || []);
@@ -572,12 +612,11 @@ function Review({ draft, setDraft }) {
     setLoading(true);
     inFlight.current = true;
     try {
-      const response = await axios.post(`${API}/registrations`, buildDraft(draft));
+      const response = await axios.post(apiUrl("/registrations"), buildDraft(draft));
       const data = response.data.data;
       navigate(`/register/success/${data.registration_id}`, { state: data });
     } catch (e) {
-      const detail = e.response?.data?.detail;
-      setError(typeof detail === "string" ? detail : detail?.message || "Please review the highlighted information and try again.");
+      setError(errorMessageFrom(e));
     } finally {
       setLoading(false);
       inFlight.current = false;
@@ -598,7 +637,7 @@ function Review({ draft, setDraft }) {
       <section className="form-intro">
         <p className="eyebrow">Final review</p>
         <h1>Check every detail.</h1>
-        <p>Once submitted, your registration cannot be edited publicly.</p>
+        <p>Review your team details before final submission.</p>
       </section>
       {error && <div className="form-error" role="alert" data-testid="registration-error">{error}</div>}
       <section className="review">
@@ -623,7 +662,7 @@ function Review({ draft, setDraft }) {
         ))}
         <div className="warning">
           <strong>Final verification</strong>
-          <p>Please verify all the information carefully before submitting. Once the registration is submitted, the details cannot be modified.</p>
+          <p>Please verify all the information carefully before submitting. Contact the organisers if a submitted registration needs a correction.</p>
           <label>
             <input type="checkbox" checked={draft.confirmation_accepted} onChange={(e) => setDraft({ ...draft, confirmation_accepted: e.target.checked })} data-testid="confirmation-checkbox" />
             I have verified the above information and confirm that all details are correct.
@@ -646,7 +685,7 @@ function Success() {
   const [loading, setLoading] = useState(!location.state);
   useEffect(() => {
     if (location.state || !registrationId) return;
-    axios.get(`${API}/registrations/${registrationId}`).then((res) => setData(res.data.data)).catch(() => setData(null)).finally(() => setLoading(false));
+    axios.get(apiUrl(`/registrations/${registrationId}`)).then((res) => setData(res.data.data)).catch(() => setData(null)).finally(() => setLoading(false));
   }, [registrationId, location.state]);
   if (loading) return <main className="success-shell"><p className="eyebrow">Loading…</p></main>;
   if (!data) return <main className="success-shell"><h1>Registration not found</h1><Link to="/" className="back-link" data-testid="success-home-link">Return to overview</Link></main>;

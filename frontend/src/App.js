@@ -60,8 +60,9 @@ const buildDraft = (data) => {
 };
 
 const mediaUrl = (path) => path ? (path.startsWith("http") ? path : `${API}/media/${path}`) : null;
+const GFG_LOGO_URL = process.env.REACT_APP_GFG_LOGO_URL?.trim() || "https://customer-assets-eiarnc6j.emergentagent.net/job_12145b8e-9780-481f-b432-98049080e6cc/artifacts/kwb4jxde_GFG%20LOGO.webp";
 const CLUB_LOGO_FALLBACKS = {
-  "gfg-kare": "/club-logos/gfg-kare.svg?v=4",
+  "gfg-kare": GFG_LOGO_URL,
   "acm-kare": "/club-logos/acm-kare.svg?v=3",
   "ieee-eds": "/club-logos/ieee-eds.svg?v=3",
   "acm-w-kare": "/club-logos/acm-w-kare.svg?v=3",
@@ -96,8 +97,11 @@ const normalizeClub = (club, index) => {
     name.includes("[club_") ||
     name.includes("collaboration") ||
     name.includes("partner");
-  if (staleOrMissing || slug === official.slug) {
+  if (staleOrMissing) {
     return { ...club, ...official, logoUrl: null };
+  }
+  if (slug === official.slug) {
+    return { ...club, ...official };
   }
   return club;
 };
@@ -119,8 +123,7 @@ const getClubLogoFallback = (club, index = 0) => {
 function ClubLogoImage({ club, index, compact = false }) {
   const fallback = getClubLogoFallback(club, index);
   const slug = (club?.slug || "").toLowerCase();
-  const officialLogo = Boolean(CLUB_LOGO_FALLBACKS[slug]);
-  const logoSrc = officialLogo ? fallback : mediaUrl(club?.logoUrl) || fallback;
+  const logoSrc = mediaUrl(club?.logoUrl) || fallback;
   const [src, setSrc] = useState(logoSrc);
   const wideLogo = ["gfg-kare", "ieee-eds", "gdg-kare"].includes(slug);
   useEffect(() => {
@@ -294,10 +297,6 @@ function Landing() {
               <div className="club-number">0{index + 1}</div>
               <div className="club-logo"><ClubLogoImage club={club} index={index} /></div>
               <h3>{club.name}</h3>
-              <p className="club-meta">
-                <span>Faculty · {club.facultyInCharge || "To be announced"}</span>
-                <span>Student · {club.studentInCharge || "To be announced"}</span>
-              </p>
               <span className="club-arrow">↗</span>
             </article>
           ))}

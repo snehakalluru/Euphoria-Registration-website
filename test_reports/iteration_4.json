@@ -1,0 +1,21 @@
+{
+  "summary": "Verified logo/name mapping fix and Supabase Postgres swap. All 5 clubs returned by GET /api/clubs in expected slot order [gfg-kare, acm-kare, ieee-eds, acm-w-kare, gdg-kare] with correct logo asset ids (kwb4jxde, 8f6z2auc, zaogaxa6, qop5o1eu, oje6iuak). displayOrder is 1..5. No stale 'partner-05' slug remains. Postgres end-to-end confirmed: DATABASE_URL uses postgresql+asyncpg (Supabase transaction pooler), /api/health returns 200, admin@euphoria.dev/Admin@12345 login returns access_token, admin statistics reachable, registration create returns EUH26-XXXXXX, duplicate team_name returns 409 TEAM_NAME_ALREADY_EXISTS (Postgres unique index works), public GET /api/registrations/{id} returns non-PII payload, /api/uploads/id-proof and /api/admin/branding/club-logo/gdg-kare uploads succeed. 21/21 tests pass.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": ["/app/backend/tests/test_logos_pg.py", "/app/backend/tests/test_gfg_rename.py", "/app/test_reports/pytest/iteration_4.xml"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "No admin endpoint exists to reset a club's logoUrl back to the original seed value; branding/club-logo/{slug} only replaces with an uploaded file. Consider adding a reset-to-seed endpoint for admin recovery.",
+    "Registration schema requires member_number==1 to submit id_proof (TEAM_LEAD_ID_PROOF_REQUIRED). The error surfaces as pydantic 422 with nested msg — clients should read ctx to distinguish this from generic validation. Consider raising HTTPException with structured detail.code for consistency with other errors."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_logos_pg.py (new)",
+    "/app/backend/tests/test_gfg_rename.py (slug list updated partner-05 -> gdg-kare; test renamed)"
+  ],
+  "success_rate": {"backend": "100% (21/21)", "frontend": "not tested (skipped per request)"},
+  "test_credentials": "admin@euphoria.dev / Admin@12345 - verified working against Supabase Postgres seed",
+  "seed_data_creation": "Created 1 registration team (PGTeam <uid>) and uploaded a 1x1 PNG for gdg-kare club logo. Small footprint per request. Uses unique per-test suffixes.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "GET /api/clubs order & mapping: 1 gfg-kare (kwb4jxde_GFG LOGO.webp), 2 acm-kare (8f6z2auc jpeg), 3 ieee-eds (zaogaxa6 %282%29.jpeg), 4 acm-w-kare (qop5o1eu %281%29.jpeg), 5 gdg-kare (oje6iuak_image.png). Slug 'partner-05' no longer exists. Backend is on Supabase Postgres (transaction pooler, statement_cache_size=0). The test_logos_pg.py branding upload test replaces gdg-kare logoUrl with a /api/media/... path — mapping test accepts either seed URL or re-uploaded path with matching slug to avoid xdist ordering flake. Registration payloads MUST include id_proof on member_number==1 (upload via /api/uploads/id-proof first)."
+}

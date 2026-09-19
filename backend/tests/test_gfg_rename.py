@@ -7,7 +7,7 @@ BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://euphoria-register.pr
 ADMIN_EMAIL = "admin@euphoria.dev"
 ADMIN_PASSWORD = "Admin@12345"
 
-EXPECTED_SLUGS = ["gfg-kare", "acm-kare", "ieee-eds", "acm-w-kare", "partner-05"]
+EXPECTED_SLUGS = ["gfg-kare", "acm-kare", "ieee-eds", "acm-w-kare", "gdg-kare"]
 
 
 @pytest.fixture(scope="module")
@@ -45,9 +45,9 @@ def test_clubs_list_first_is_gfg():
     assert "GFG" in logo or "gfg" in logo.lower(), f"logoUrl should reference GFG asset: {logo}"
 
 
-def test_no_old_gdg_slug():
+def test_no_old_partner_05_slug():
     slugs = [c["slug"] for c in _clubs()]
-    assert "gdg-kare" not in slugs
+    assert "partner-05" not in slugs
 
 
 def test_admin_login_and_stats(admin_token):

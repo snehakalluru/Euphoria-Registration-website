@@ -36,6 +36,7 @@ dist
 *credentials.json*
 
 # Logs and debug files
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -62,6 +63,7 @@ chainlit.md
 .vercel
 
 # Data and databases
+*.db
 agenthub/agents/youtube/db
 
 # Archive files and large assets
@@ -86,6 +88,8 @@ android-sdk/
 .env
 .env.*
 *.env
+!.env.example
+!backend/.env.example
 credentials.json
 *.key
 .credentials

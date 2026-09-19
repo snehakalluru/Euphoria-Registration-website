@@ -45,6 +45,19 @@ DEV_CLUBS = [
 ]
 
 
+OFFICIAL_CLUB_LABELS = {
+    "gfg-kare": ("GFG Campus Body-KARE", "GeeksforGeeks Campus Body at KARE"),
+    "acm-kare": ("KARE ACM Student-Chapter", "Association for Computing Machinery student chapter at KARE"),
+    "ieee-eds": ("KARE IEEE Education Society", "IEEE Education Society at KARE"),
+    "acm-w-kare": ("KARE ACM-W", "ACM's committee for women in computing at KARE"),
+    "gdg-kare": ("Google Developers-KARE", "Google Developers community at KARE"),
+}
+for club in DEV_CLUBS:
+    label = OFFICIAL_CLUB_LABELS.get(club["slug"])
+    if label:
+        club["name"], club["description"] = label
+
+
 async def seed_dev_data():
     factory = get_session_factory()
     async with factory() as session:
@@ -77,6 +90,21 @@ async def seed_dev_data():
                 if club["display_order"] in existing_orders:
                     continue
                 session.add(Club(hackathon_id=hackathon.id, name=club["name"], slug=club["slug"], display_order=club["display_order"], description=club["description"], logo_url=club.get("logo_url"), is_visible=True))
+        else:
+            clubs_by_order = {club.display_order: club for club in existing_clubs}
+            for official in DEV_CLUBS:
+                club = clubs_by_order.get(official["display_order"])
+                if club is None:
+                    continue
+                stale_partner = "partner" in club.slug.lower() or "collaboration" in club.name.lower()
+                official_slot_changed = club.slug != official["slug"]
+                official_text_changed = club.name != official["name"] or club.description != official["description"]
+                if stale_partner or official_slot_changed or official_text_changed:
+                    club.name = official["name"]
+                    club.slug = official["slug"]
+                    club.description = official["description"]
+                    club.logo_url = official.get("logo_url")
+                    club.is_visible = True
         admin_email = os.getenv("ADMIN_EMAIL", "admin@euphoria.dev").strip().lower()
         admin_password = os.getenv("ADMIN_PASSWORD", "Admin@12345")
         existing_admin = await session.scalar(select(Admin).where(Admin.email == admin_email))
@@ -88,9 +116,10 @@ async def seed_dev_data():
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     engine = get_engine()
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    await seed_dev_data()
+    if is_sqlite():
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+        await seed_dev_data()
     try:
         init_storage()
     except Exception as exc:  # storage not fatal for boot

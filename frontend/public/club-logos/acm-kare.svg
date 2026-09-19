@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300" role="img" aria-labelledby="title desc">
+  <title id="title">KARE ACM Student Chapter</title>
+  <desc id="desc">Blue diamond KARE ACM student chapter logo</desc>
+  <rect width="300" height="300" fill="#000"/>
+  <g transform="translate(150 150) rotate(45)">
+    <rect x="-106" y="-106" width="212" height="212" fill="#62b8dd"/>
+  </g>
+  <circle cx="150" cy="150" r="86" fill="none" stroke="#fff" stroke-width="8"/>
+  <text x="150" y="127" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="32" font-weight="800" fill="#fff" letter-spacing="2">KARE</text>
+  <text x="150" y="169" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="35" font-weight="800" fill="#fff" letter-spacing="1">ACM</text>
+  <text x="150" y="194" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="800" fill="#fff" letter-spacing="1.2">STUDENT CHAPTER</text>
+</svg>

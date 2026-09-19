@@ -3,14 +3,23 @@ import { BrowserRouter, Link, Navigate, Route, Routes, useLocation, useNavigate,
 import axios from "axios";
 import "@/App.css";
 
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+const getBackendUrl = () => {
+  const configuredUrl = process.env.REACT_APP_BACKEND_URL?.trim();
+  if (configuredUrl) return configuredUrl.replace(/\/+$/, "");
+
+  if (typeof window !== "undefined" && window.location.hostname === "localhost") {
+    return "http://localhost:8000";
+  }
+
+  return typeof window !== "undefined" ? window.location.origin : "";
+};
+
+const API = `${getBackendUrl()}/api`;
 
 /* ---------- helpers ---------- */
-const blankMember = (number) => ({ member_number: number, name: "", registration_number: "", email: "", phone: "", gender: "", year: "", branch: "", section: "", euphoria_id: "", accommodation_type: "day_scholar", hostel: null });
+const blankMember = (number) => ({ member_number: number, name: "", registration_number: "", email: "", phone: "", gender: "", year: "N/A", branch: "N/A", section: "N/A", euphoria_id: "", accommodation_type: "day_scholar", hostel: null });
 const emptyDraft = { team_name: "", college_type: "internal", college_name: "", members: [1, 2, 3, 4].map(blankMember), confirmation_accepted: false };
 const GENDERS = ["Male", "Female", "Prefer not to say"];
-const YEARS = ["I", "II", "III", "IV", "V"];
-const BRANCHES = ["CSE", "ECE", "IT", "EEE", "MECH", "CIVIL", "AIDS", "AIML", "Other"];
 
 const FACULTY_COORDINATORS = [
   { name: "Mrs. N. Kirthiga", role: "AP/CSE" },
@@ -37,9 +46,87 @@ const FACULTY_CONTACTS = [
   { name: "Dr. R. Raja Sekar", phone: "+91 63821 72610", phoneRaw: "+916382172610" },
 ];
 
-const buildDraft = (data) => ({ ...emptyDraft, ...data });
+const normalizeMemberDraft = (member, index) => ({
+  ...blankMember(index + 1),
+  ...member,
+  member_number: member?.member_number || index + 1,
+  year: member?.year || "N/A",
+  branch: member?.branch || "N/A",
+  section: member?.section || "N/A",
+});
+const buildDraft = (data) => {
+  const merged = { ...emptyDraft, ...data };
+  return { ...merged, members: (merged.members || emptyDraft.members).map(normalizeMemberDraft) };
+};
 
 const mediaUrl = (path) => path ? (path.startsWith("http") ? path : `${API}/media/${path}`) : null;
+const CLUB_LOGO_FALLBACKS = {
+  "gfg-kare": "/club-logos/gfg-kare.svg?v=3",
+  "acm-kare": "/club-logos/acm-kare.svg?v=3",
+  "ieee-eds": "/club-logos/ieee-eds.svg?v=3",
+  "acm-w-kare": "/club-logos/acm-w-kare.svg?v=3",
+  "gdg-kare": "/club-logos/gdg-kare.svg?v=3",
+};
+
+const OFFICIAL_CLUBS = [
+  { name: "GFG Campus Body-KARE", slug: "gfg-kare", displayOrder: 1 },
+  { name: "KARE ACM Student-Chapter", slug: "acm-kare", displayOrder: 2 },
+  { name: "KARE IEEE Education Society", slug: "ieee-eds", displayOrder: 3 },
+  { name: "KARE ACM-W", slug: "acm-w-kare", displayOrder: 4 },
+  { name: "Google Developers-KARE", slug: "gdg-kare", displayOrder: 5 },
+];
+
+const normalizeClub = (club, index) => {
+  const official = OFFICIAL_CLUBS[index];
+  if (!official) return club;
+  const slug = (club?.slug || "").toLowerCase();
+  const name = (club?.name || "").toLowerCase();
+  const staleOrMissing =
+    !club ||
+    slug.startsWith("club-") ||
+    slug.includes("partner") ||
+    name.includes("[club_") ||
+    name.includes("collaboration") ||
+    name.includes("partner");
+  if (staleOrMissing || slug === official.slug) {
+    return { ...club, ...official, logoUrl: null };
+  }
+  return club;
+};
+
+const getClubLogoFallback = (club, index = 0) => {
+  const slug = (club?.slug || "").toLowerCase();
+  const name = (club?.name || "").toLowerCase();
+  if (CLUB_LOGO_FALLBACKS[slug]) return CLUB_LOGO_FALLBACKS[slug];
+  if (name.includes("gfg") || name.includes("geeks")) return CLUB_LOGO_FALLBACKS["gfg-kare"];
+  if (name.includes("acm-w")) return CLUB_LOGO_FALLBACKS["acm-w-kare"];
+  if (name.includes("acm")) return CLUB_LOGO_FALLBACKS["acm-kare"];
+  if (name.includes("ieee")) return CLUB_LOGO_FALLBACKS["ieee-eds"];
+  if (name.includes("gdg")) return CLUB_LOGO_FALLBACKS["gdg-kare"];
+  if (index === 4) return CLUB_LOGO_FALLBACKS["gdg-kare"];
+  if (name.includes("collaboration") || name.includes("partner")) return "/club-logos/collaboration.svg";
+  return "/club-logos/collaboration.svg";
+};
+
+function ClubLogoImage({ club, index, compact = false }) {
+  const fallback = getClubLogoFallback(club, index);
+  const slug = (club?.slug || "").toLowerCase();
+  const officialLogo = Boolean(CLUB_LOGO_FALLBACKS[slug]);
+  const logoSrc = officialLogo ? fallback : mediaUrl(club?.logoUrl) || fallback;
+  const [src, setSrc] = useState(logoSrc);
+  const wideLogo = ["gfg-kare", "ieee-eds", "gdg-kare"].includes(slug);
+  useEffect(() => {
+    setSrc(logoSrc);
+  }, [logoSrc]);
+  return (
+    <img
+      src={src}
+      alt={club?.name || `Club ${index + 1}`}
+      className={`club-logo-image club-logo-${slug || `club-${index + 1}`}${compact ? " compact" : ""}${wideLogo ? " wide" : ""}`}
+      onError={() => setSrc(fallback)}
+    />
+  );
+}
 
 const formatEventDates = (startsAt, endsAt) => {
   if (!startsAt) return null;
@@ -106,7 +193,7 @@ function Intro({ clubs, onSkip }) {
       <div className="intro-logos">
         {(clubs || []).slice(0, 5).map((club, idx) => (
           <div key={club.slug || idx} className="intro-logo-badge" aria-label={club.name}>
-            {club.logoUrl ? <img src={mediaUrl(club.logoUrl)} alt={club.name} /> : <span>{idx + 1}</span>}
+            <ClubLogoImage club={club} index={idx} compact />
           </div>
         ))}
         {(!clubs || clubs.length === 0) && Array.from({ length: 5 }).map((_, i) => <div key={i} className="intro-logo-badge"><span>{i + 1}</span></div>)}
@@ -141,7 +228,7 @@ function Landing() {
   const instructions = hackathon?.instructions || [];
   const sdgs = hackathon?.sdgGoals || [];
   const eventDates = formatEventDates(hackathon?.startsAt, hackathon?.endsAt);
-  const clubList = clubs.length ? clubs : Array.from({ length: 5 }).map((_, i) => ({ name: `[CLUB_0${i + 1}]`, slug: `club-0${i + 1}`, displayOrder: i + 1 }));
+  const clubList = (clubs.length ? clubs : OFFICIAL_CLUBS).slice(0, 5).map(normalizeClub);
 
   return (
     <main className="site-shell">
@@ -193,7 +280,7 @@ function Landing() {
           {clubList.map((club, index) => (
             <article className="club-card" key={club.slug || index} data-testid={`club-card-${index + 1}`}>
               <div className="club-number">0{index + 1}</div>
-              <div className="club-logo">{club.logoUrl ? <img src={mediaUrl(club.logoUrl)} alt={club.name} /> : <div className="club-placeholder">{club.name.replace(/[^A-Z0-9]/g, "").slice(0, 2) || `C${index + 1}`}</div>}</div>
+              <div className="club-logo"><ClubLogoImage club={club} index={index} /></div>
               <h3>{club.name}</h3>
               {(club.facultyInCharge || club.studentInCharge) && (
                 <p className="club-meta">
@@ -357,25 +444,6 @@ function MemberCard({ member, index, update, remove, collegeType }) {
   const set = (key, value) => update({ ...member, [key]: value });
   const prefix = `member-${member.member_number}`;
   const isLead = member.member_number === 1;
-  const [uploading, setUploading] = useState(false);
-  const [uploadError, setUploadError] = useState("");
-
-  const uploadIdProof = async (file) => {
-    if (!file) return;
-    setUploadError("");
-    setUploading(true);
-    try {
-      const fd = new FormData();
-      fd.append("file", file);
-      const res = await axios.post(`${API}/uploads/id-proof`, fd, { headers: { "Content-Type": "multipart/form-data" } });
-      const data = res.data.data;
-      update({ ...member, id_proof: { path: data.path, filename: data.filename, content_type: data.content_type } });
-    } catch (e) {
-      setUploadError(e.response?.data?.detail?.message || "Upload failed. Try a smaller PNG/JPG/PDF.");
-    } finally {
-      setUploading(false);
-    }
-  };
 
   return (
     <article className="member-card" data-testid={`member-card-${member.member_number}`}>
@@ -385,47 +453,32 @@ function MemberCard({ member, index, update, remove, collegeType }) {
           <h2>{isLead ? "Team lead" : `Contributor 0${index}`}</h2>
         </div>
         {member.member_number === 5 && (
-          <button className="remove-button" onClick={remove} type="button" data-testid="remove-member-five-button">Remove member 05</button>
+          <button className="remove-button" onClick={remove} type="button" data-testid="remove-member-five-button">Remove optional member 05</button>
         )}
       </div>
       <div className="field-grid">
         <Field label="Name" testId={`${prefix}-name-input`} value={member.name} onChange={(e) => set("name", e.target.value)} />
-        <Field label="Registration number" testId={`${prefix}-registration-number-input`} value={member.registration_number} onChange={(e) => set("registration_number", e.target.value)} />
-        <Field label="College email" testId={`${prefix}-email-input`} value={member.email} type="email" onChange={(e) => set("email", e.target.value)} />
-        <Field label="Phone number" testId={`${prefix}-phone-input`} value={member.phone} type="tel" onChange={(e) => set("phone", e.target.value)} />
+        <Field label="Registration / Roll Number" testId={`${prefix}-registration-number-input`} value={member.registration_number} onChange={(e) => set("registration_number", e.target.value)} />
         <SelectField label="Gender" testId={`${prefix}-gender-select`} value={member.gender} options={GENDERS} onChange={(e) => set("gender", e.target.value)} />
-        <SelectField label="Year" testId={`${prefix}-year-select`} value={member.year} options={YEARS} onChange={(e) => set("year", e.target.value)} />
-        <SelectField label="Branch" testId={`${prefix}-branch-select`} value={member.branch} options={BRANCHES} onChange={(e) => set("branch", e.target.value)} />
-        <Field label="Section" testId={`${prefix}-section-input`} value={member.section} onChange={(e) => set("section", e.target.value)} />
-        <Field label="Euphoria ID" testId={`${prefix}-euphoria-id-input`} value={member.euphoria_id} onChange={(e) => set("euphoria_id", e.target.value)} placeholder="Issued by Euphoria registration" />
+        <Field label="Email ID" testId={`${prefix}-email-input`} value={member.email} type="email" onChange={(e) => set("email", e.target.value)} />
+        <Field label="Phone Number" testId={`${prefix}-phone-input`} value={member.phone} type="tel" onChange={(e) => set("phone", e.target.value)} />
+        <Field label="Euphoria ID" testId={`${prefix}-euphoria-id-input`} value={member.euphoria_id} onChange={(e) => set("euphoria_id", e.target.value)} placeholder="Given in the email payment receipt" />
       </div>
       {collegeType === "internal" && (
         <div className="accommodation">
-          <span className="field-label">Accommodation<b>*</b></span>
+          <span className="field-label">Accommodation Type<b>*</b></span>
           <div className="radio-row">
-            <label><input type="radio" checked={member.accommodation_type === "day_scholar"} onChange={() => { set("accommodation_type", "day_scholar"); update({ ...member, accommodation_type: "day_scholar", hostel: null }); }} data-testid={`${prefix}-day-scholar-radio`} /> Day Scholar</label>
+            <label><input type="radio" checked={member.accommodation_type === "day_scholar"} onChange={() => { set("accommodation_type", "day_scholar"); update({ ...member, accommodation_type: "day_scholar", hostel: null }); }} data-testid={`${prefix}-day-scholar-radio`} /> Dayscholar</label>
             <label><input type="radio" checked={member.accommodation_type === "hosteller"} onChange={() => set("accommodation_type", "hosteller")} data-testid={`${prefix}-hosteller-radio`} /> Hosteller</label>
           </div>
           {member.accommodation_type === "hosteller" && (
             <div className="field-grid hostel-grid">
-              <Field label="Hostel name" testId={`${prefix}-hostel-name-input`} value={member.hostel?.hostel_name || ""} onChange={(e) => set("hostel", { ...(member.hostel || {}), hostel_name: e.target.value })} />
-              <Field label="Room number" testId={`${prefix}-room-number-input`} value={member.hostel?.room_number || ""} onChange={(e) => set("hostel", { ...(member.hostel || {}), room_number: e.target.value })} />
-              <Field label="Warden name" testId={`${prefix}-warden-name-input`} value={member.hostel?.warden_name || ""} onChange={(e) => set("hostel", { ...(member.hostel || {}), warden_name: e.target.value })} />
-              <Field label="Warden phone" testId={`${prefix}-warden-phone-input`} value={member.hostel?.warden_phone || ""} onChange={(e) => set("hostel", { ...(member.hostel || {}), warden_phone: e.target.value })} />
+              <Field label="Hostel Name" testId={`${prefix}-hostel-name-input`} value={member.hostel?.hostel_name || ""} onChange={(e) => set("hostel", { ...(member.hostel || {}), hostel_name: e.target.value })} />
+              <Field label="Room Number" testId={`${prefix}-room-number-input`} value={member.hostel?.room_number || ""} onChange={(e) => set("hostel", { ...(member.hostel || {}), room_number: e.target.value })} />
+              <Field label="Warden Name" testId={`${prefix}-warden-name-input`} value={member.hostel?.warden_name || ""} onChange={(e) => set("hostel", { ...(member.hostel || {}), warden_name: e.target.value })} />
+              <Field label="Warden Contact Number" testId={`${prefix}-warden-phone-input`} value={member.hostel?.warden_phone || ""} onChange={(e) => set("hostel", { ...(member.hostel || {}), warden_phone: e.target.value })} />
             </div>
           )}
-        </div>
-      )}
-      {isLead && (
-        <div className="accommodation">
-          <span className="field-label">Team lead ID proof<b>*</b></span>
-          <p className="muted" style={{ fontSize: 12, margin: "6px 0 12px" }}>Upload a photo of your student ID card (PNG · JPG · PDF · max 5 MB). Only shared with organizers.</p>
-          <label className="uploader" data-testid="id-proof-uploader">
-            <input type="file" accept="image/*,application/pdf" onChange={(e) => uploadIdProof(e.target.files?.[0])} data-testid={`${prefix}-id-proof-input`} />
-            <span>{uploading ? "Uploading…" : member.id_proof ? `Replace file (${member.id_proof.filename})` : "Choose file to upload"}</span>
-          </label>
-          {member.id_proof && !uploading && <p className="upload-ok" data-testid="id-proof-ok">✓ {member.id_proof.filename} attached</p>}
-          {uploadError && <p className="upload-error" data-testid="id-proof-error">{uploadError}</p>}
         </div>
       )}
     </article>
@@ -435,7 +488,10 @@ function MemberCard({ member, index, update, remove, collegeType }) {
 /* ---------- Registration ---------- */
 function Registration({ draft, setDraft }) {
   const navigate = useNavigate();
-  const submit = () => navigate("/register/review");
+  const submit = () => {
+    setDraft(buildDraft(draft));
+    navigate("/register/review");
+  };
   const updateMember = (index, value) => setDraft({ ...draft, members: draft.members.map((m, i) => i === index ? value : m) });
   const setCollegeType = (value) => {
     let members = draft.members;
@@ -460,13 +516,13 @@ function Registration({ draft, setDraft }) {
       </div>
       <section className="form-intro">
         <p className="eyebrow">Centralized team registration</p>
-        <h1>Bring your best team.</h1>
-        <p>Four members are required. A fifth teammate can be added when your idea needs one more perspective.</p>
+        <h1>Registration Page.</h1>
+        <p>Team size is 4-5 members. Members 1-4 are required, and Member 5 is optional.</p>
       </section>
       <form onSubmit={(e) => { e.preventDefault(); submit(); }}>
         <section className="team-card">
           <div className="member-heading">
-            <div><p className="eyebrow">Team details</p><h2>Set your direction.</h2></div>
+            <div><p className="eyebrow">Team details</p><h2>Team Details</h2></div>
             <span className="required-note">* Required</span>
           </div>
           <div className="field-grid">
@@ -479,7 +535,7 @@ function Registration({ draft, setDraft }) {
               </select>
             </label>
             {draft.college_type === "external" && (
-              <Field label="College name" testId="college-name-input" value={draft.college_name} onChange={(e) => setDraft({ ...draft, college_name: e.target.value })} />
+              <Field label="College Name" testId="college-name-input" value={draft.college_name} onChange={(e) => setDraft({ ...draft, college_name: e.target.value })} />
             )}
           </div>
         </section>
@@ -489,7 +545,7 @@ function Registration({ draft, setDraft }) {
         {draft.members.length === 4 && (
           <button className="add-member" type="button" onClick={() => setDraft({ ...draft, members: [...draft.members, blankMember(5)] })} data-testid="add-member-five-button">+ Add optional member 05</button>
         )}
-        <button className="gold-button wide" type="submit" data-testid="continue-review-button">Continue to review <span>↗</span></button>
+        <button className="gold-button wide" type="submit" data-testid="continue-review-button">Continue / Review Details <span>→</span></button>
       </form>
     </main>
   );
@@ -508,7 +564,7 @@ function Review({ draft, setDraft }) {
     setLoading(true);
     inFlight.current = true;
     try {
-      const response = await axios.post(`${API}/registrations`, draft);
+      const response = await axios.post(`${API}/registrations`, buildDraft(draft));
       const data = response.data.data;
       navigate(`/register/success/${data.registration_id}`, { state: data });
     } catch (e) {
@@ -546,13 +602,12 @@ function Review({ draft, setDraft }) {
         {draft.members.map((m) => (
           <article className="review-member" key={m.member_number} data-testid={`review-member-${m.member_number}`}>
             <div><span>Member {m.member_number}{m.member_number === 1 ? " · Team lead" : ""}</span><strong>{m.name || "Unnamed member"}</strong></div>
-            <div><span>Registration</span><strong>{m.registration_number || "—"}</strong></div>
-            <div><span>Email</span><strong>{m.email || "—"}</strong></div>
-            <div><span>Phone</span><strong>{m.phone || "—"}</strong></div>
-            <div><span>Year · Branch · Section</span><strong>{[m.year, m.branch, m.section].filter(Boolean).join(" · ") || "—"}</strong></div>
+            <div><span>Registration / Roll Number</span><strong>{m.registration_number || "—"}</strong></div>
+            <div><span>Email ID</span><strong>{m.email || "—"}</strong></div>
+            <div><span>Phone Number</span><strong>{m.phone || "—"}</strong></div>
             <div><span>Gender</span><strong>{m.gender || "—"}</strong></div>
             <div><span>Euphoria ID</span><strong>{m.euphoria_id || "—"}</strong></div>
-            {m.accommodation_type && <div><span>Accommodation</span><strong>{m.accommodation_type === "hosteller" ? "Hosteller" : "Day Scholar"}</strong></div>}
+            {m.accommodation_type && <div><span>Accommodation Type</span><strong>{m.accommodation_type === "hosteller" ? "Hosteller" : "Dayscholar"}</strong></div>}
             {m.accommodation_type === "hosteller" && m.hostel && (
               <div><span>Hostel</span><strong>{m.hostel.hostel_name} · Room {m.hostel.room_number} · Warden {m.hostel.warden_name} ({m.hostel.warden_phone})</strong></div>
             )}

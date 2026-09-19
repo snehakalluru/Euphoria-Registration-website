@@ -69,9 +69,6 @@ class RegistrationSubmission(BaseModel):
             for member in self.members:
                 if member.accommodation_type is None:
                     raise ValueError("INVALID_ACCOMMODATION")
-        for member in self.members:
-            if member.member_number == 1 and member.id_proof is None:
-                raise ValueError("TEAM_LEAD_ID_PROOF_REQUIRED")
         numbers = sorted(member.member_number for member in self.members)
         if numbers != list(range(1, len(self.members) + 1)):
             raise ValueError("INVALID_MEMBER_SEQUENCE")

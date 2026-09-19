@@ -9,6 +9,8 @@ const isDevServer = process.env.NODE_ENV !== "production";
 // Environment variable overrides
 const config = {
   enableHealthCheck: process.env.ENABLE_HEALTH_CHECK === "true",
+  enableEmergentOverlay: process.env.ENABLE_EMERGENT_OVERLAY === "true",
+  enableVisualEdits: process.env.ENABLE_VISUAL_EDITS === "true",
 };
 
 function makeDevServerV5Compatible(devServerConfig) {
@@ -72,7 +74,7 @@ if (config.enableHealthCheck) {
 // Branded error overlay + preview health probe, dev server only. Fails open: a broken
 // overlay must degrade to "no overlay", never to "no dev server".
 let emergentOverlay;
-if (isDevServer && process.env.DISABLE_EMERGENT_OVERLAY !== "true") {
+if (isDevServer && config.enableEmergentOverlay) {
   try {
     emergentOverlay = require("@emergentbase/overlay/craco").emergentOverlayCraco({
       root: __dirname,
@@ -159,7 +161,7 @@ webpackConfig.devServer = (devServerConfig) => {
 };
 
 // Wrap with visual edits (automatically adds babel plugin, dev server, and overlay in dev mode)
-if (isDevServer) {
+if (isDevServer && config.enableVisualEdits) {
   try {
     const { withVisualEdits } = require("@emergentbase/visual-edits/craco");
     webpackConfig = withVisualEdits(webpackConfig);

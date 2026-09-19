@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4548 3900" role="img" aria-labelledby="title desc">
+  <title id="title">GFG Campus Body KARE</title>
+  <desc id="desc">Current green GeeksforGeeks double G mark on white</desc>
+  <rect width="4548" height="3900" fill="#fff"/>
+  <g fill="none" stroke="#2f8e46" stroke-width="142" stroke-linecap="butt" transform="translate(80 0) scale(3.12)">
+    <path d="M632 198C551 111 431 71 309 105C137 153 36 331 84 503C132 675 311 776 482 728C579 701 653 627 684 535"/>
+    <path d="M768 198C849 111 969 71 1091 105C1263 153 1364 331 1316 503C1268 675 1089 776 918 728C821 701 747 627 716 535"/>
+    <path d="M162 360H700"/>
+    <path d="M700 360H1238"/>
+  </g>
+</svg>

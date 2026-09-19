@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import AccommodationType, CollegeType, Hackathon, Team, TeamMember
+from app.models import AccommodationType, CollegeType, Hackathon, RegistrationStatus, Team, TeamMember
 from app.schemas.registration import RegistrationSubmission
 from app.services.normalization import normalize_email, normalize_identifier, normalize_phone, normalize_team_name
 
@@ -67,7 +67,7 @@ async def create_registration(session: AsyncSession, payload: RegistrationSubmis
     team = Team(
         id=uuid4(), hackathon_id=hackathon.id, registration_id=generate_registration_id(), team_name=payload.team_name,
         team_name_normalized=team_name_normalized, college_type=CollegeType(payload.college_type), college_name=payload.college_name,
-        member_count=len(payload.members), confirmation_accepted=True,
+        member_count=len(payload.members), confirmation_accepted=payload.confirmation_accepted, status=RegistrationStatus.SUBMITTED,
     )
     session.add(team)
     for member in payload.members:

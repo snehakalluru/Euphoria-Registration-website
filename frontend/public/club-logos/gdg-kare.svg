@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1260 1260" role="img" aria-labelledby="title desc">
+  <title id="title">GDG On Campus KARE</title>
+  <desc id="desc">GDG On Campus KARE logo</desc>
+  <rect width="1260" height="1260" fill="#fff"/>
+  <path d="M455 275l-112 112 112 112" fill="none" stroke="#ea4335" stroke-width="70" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M455 499L343 387" fill="none" stroke="#4285f4" stroke-width="70" stroke-linecap="round"/>
+  <path d="M805 275l112 112-112 112" fill="none" stroke="#34a853" stroke-width="70" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M805 499l112-112" fill="none" stroke="#fbbc05" stroke-width="70" stroke-linecap="round"/>
+  <text x="630" y="760" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="250" font-weight="800">
+    <tspan fill="#1a73e8">G</tspan><tspan fill="#ea4335">D</tspan><tspan fill="#fbbc04">G</tspan>
+  </text>
+  <text x="630" y="900" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="92" font-weight="800">
+    <tspan fill="#111">On Campus </tspan><tspan fill="#555">KARE</tspan>
+  </text>
+</svg>

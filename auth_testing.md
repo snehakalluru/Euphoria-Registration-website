@@ -6,6 +6,20 @@ Authentication uses PostgreSQL `admins`, bcrypt password hashes, and JWT access 
 
 Set `DATABASE_URL`, `SECRET_KEY`, `ADMIN_EMAIL`, and `ADMIN_PASSWORD` only in the local environment. Never commit them.
 
+For production Supabase, also set `APP_ENV=production`. The backend refuses to boot with SQLite in production mode.
+
+Before production boot, run Alembic from `backend/` with the Supabase `DATABASE_URL` set:
+
+```bash
+alembic upgrade head
+```
+
+To inspect the live Supabase schema without printing credentials:
+
+```bash
+python scripts/inspect_db_schema.py
+```
+
 ## Checks
 
 1. Seed one development admin with a bcrypt password hash.

@@ -6,7 +6,7 @@ Production-quality, secure, scalable and premium platform for the ONE Euphoria H
 ## Stack
 - Frontend: React SPA (CRA + craco) at /app/frontend — user opted for SPA over Next.js
 - Backend: FastAPI + SQLAlchemy 2 async at /app/backend
-- Database: SQLite dev fallback (aiosqlite) at `euphoria_dev.db`; Supabase Postgres pluggable via `DATABASE_URL`
+- Database: SQLite dev fallback (aiosqlite) at `euphoria_dev.db`; Supabase Postgres via `DATABASE_URL` with `APP_ENV=production`
 - Auth: JWT + bcrypt admin login (seeded via ENV)
 - Storage: **Emergent Object Storage** via `emergentintegrations` proxy (init at startup)
 
@@ -37,14 +37,14 @@ Production-quality, secure, scalable and premium platform for the ONE Euphoria H
 - Ingress: backend routes under `/api/*`; frontend uses `REACT_APP_BACKEND_URL`
 
 ## Prioritised backlog
-- P0 (pending): Provide Supabase Postgres connection string; swap `DATABASE_URL` and run Alembic (`0001_initial_euphoria_schema.py` already committed)
+- P0 (pending): Provide Supabase Postgres connection string; set `APP_ENV=production`, set `DATABASE_URL`, and run Alembic to head
 - P1: Faculty/student contact rendering on landing (hidden by default, admin toggle)
 - P1: Email confirmation (Resend integration) sending the Registration ID to the team lead
 - P1: Rate limit + brute-force lockout on `/api/admin/auth/login`
 - P2: Storage sync helper — after upload use `await asyncio.to_thread(requests.put, ...)` to keep event loop responsive under load
 - P2: Orphan ID-proof cleanup cron (files uploaded but registration never submitted)
 - P2: SVG logo sanitization or restrict to raster
-- P2: Alembic migration to add `id_proof_*` columns for prod (currently only created via `create_all` on SQLite)
+- P2: Orphan ID-proof cleanup cron (files uploaded but registration never submitted)
 
 ## Test credentials
 - `/app/memory/test_credentials.md` — Admin `admin@euphoria.dev / Admin@12345`

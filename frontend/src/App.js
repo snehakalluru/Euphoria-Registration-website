@@ -12,6 +12,25 @@ const GENDERS = ["Male", "Female", "Prefer not to say"];
 const YEARS = ["I", "II", "III", "IV", "V"];
 const BRANCHES = ["CSE", "ECE", "IT", "EEE", "MECH", "CIVIL", "AIDS", "AIML", "Other"];
 
+const FACULTY_COORDINATORS = [
+  { name: "Mrs. N. Kirthiga", role: "AP/CSE" },
+  { name: "Mrs. S. Reshni", role: "AP/CSE" },
+  { name: "Mrs. B. Lavanya", role: "AP/CSE" },
+  { name: "Mrs. S. Shanmuga Priya", role: "AP/CSE" },
+  { name: "Mr. C. Sivamurugan", role: "AP/CSE" },
+  { name: "Dr. M. K. Nagarajan", role: "AP/CSE" },
+  { name: "Dr. R. Raja Sekar", role: "AP/CSE" },
+  { name: "Dr. T. Dhilipan Rajkumar", role: "AP/CSE" },
+  { name: "Mrs. P. J. Kruthika", role: "AP/CSE" },
+  { name: "Mr. Aravind Chandran", role: "AP/CSE" },
+];
+const FACULTY_SPONSOR = { name: "Dr. P. Chinnasamy", role: "ACM / IEEE EDU SBC Counsellor · KARE · ASP/CSE" };
+const REGISTRAR = { name: "Dr. V. Vasudevan", role: "Registrar" };
+const STUDENT_COORDINATORS = [
+  { name: "L. Harsha Vardhan", phone: "+91 91005 50609", phoneRaw: "+919100550609" },
+  { name: "P. Harshika Suryanjali", phone: "+91 95027 95304", phoneRaw: "+919502795304" },
+];
+
 const buildDraft = (data) => ({ ...emptyDraft, ...data });
 
 const mediaUrl = (path) => path ? (path.startsWith("http") ? path : `${API}/media/${path}`) : null;
@@ -81,6 +100,7 @@ function Landing() {
         <div className="nav-links">
           <a href="#collaboration" data-testid="nav-collaboration-link">Collaboration</a>
           <a href="#rules" data-testid="nav-rules-link">Rules</a>
+          <a href="#coordinators" data-testid="nav-coordinators-link">Coordinators</a>
           <a href="#sdgs" data-testid="nav-sdgs-link">SDG Goals</a>
           <Link to="/register" className="nav-cta" data-testid="nav-register-link">Register now ↗</Link>
         </div>
@@ -148,6 +168,54 @@ function Landing() {
           <div>
             <p className="accordion-label">Important Instructions</p>
             {instructions.map((r, i) => <div key={i} className="accordion open" data-testid={`instruction-${i}`}><strong>{r.title}</strong><p>{r.body}</p></div>)}
+          </div>
+        </div>
+      </section>
+
+      <section id="coordinators" className="section coordinators-section">
+        <div className="section-head">
+          <p className="eyebrow">Talk to the team</p>
+          <h2>Coordinators.</h2>
+          <p>Reach out to the student coordinators for any registration or logistics questions. Faculty coordinators and the sponsor oversee the event.</p>
+        </div>
+        <div className="coord-grid">
+          <div className="coord-column">
+            <p className="accordion-label">Student coordinators</p>
+            <div className="student-coord-list">
+              {STUDENT_COORDINATORS.map((s) => (
+                <a key={s.phoneRaw} href={`tel:${s.phoneRaw}`} className="student-coord-card" data-testid={`student-coord-${s.phoneRaw}`}>
+                  <div className="coord-avatar">{s.name.split(" ").map((p) => p[0]).slice(0, 2).join("")}</div>
+                  <div>
+                    <strong>{s.name}</strong>
+                    <span>{s.phone}</span>
+                  </div>
+                  <i>↗</i>
+                </a>
+              ))}
+            </div>
+            <p className="accordion-label" style={{ marginTop: 36 }}>Faculty sponsor & registrar</p>
+            <div className="sponsor-card" data-testid="faculty-sponsor">
+              <strong>{FACULTY_SPONSOR.name}</strong>
+              <span>{FACULTY_SPONSOR.role}</span>
+            </div>
+            <div className="sponsor-card" data-testid="registrar">
+              <strong>{REGISTRAR.name}</strong>
+              <span>{REGISTRAR.role}</span>
+            </div>
+          </div>
+          <div className="coord-column">
+            <p className="accordion-label">Faculty coordinators · {FACULTY_COORDINATORS.length}</p>
+            <div className="faculty-grid">
+              {FACULTY_COORDINATORS.map((f, i) => (
+                <div key={f.name} className="faculty-card" data-testid={`faculty-coord-${i + 1}`}>
+                  <span className="mono">{String(i + 1).padStart(2, "0")}</span>
+                  <div>
+                    <strong>{f.name}</strong>
+                    <span>{f.role}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </section>

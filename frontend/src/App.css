@@ -84,6 +84,38 @@ button { cursor: pointer; }
 
 .sdg-section { border-top: 1px solid rgba(247, 237, 218, .09); }
 .sdg-grid { border-top: 1px solid var(--line); }
+
+/* COORDINATORS */
+.coordinators-section { border-top: 1px solid rgba(247, 237, 218, .09); }
+.coord-grid { display: grid; grid-template-columns: .95fr 1.05fr; gap: 60px; }
+.coord-column { display: flex; flex-direction: column; }
+.student-coord-list { display: flex; flex-direction: column; gap: 12px; }
+.student-coord-card { display: grid; grid-template-columns: 60px 1fr 20px; gap: 18px; align-items: center; padding: 22px 24px; border: 1px solid var(--gold); background: linear-gradient(135deg, rgba(213, 169, 79, .12), rgba(43, 25, 16, .68)); text-decoration: none; color: var(--cream); transition: transform .25s ease, border-color .25s ease; }
+.student-coord-card:hover { transform: translateY(-4px); border-color: var(--gold-bright); }
+.coord-avatar { width: 56px; height: 56px; border-radius: 50%; border: 1px solid var(--gold-bright); display: grid; place-items: center; color: var(--gold-bright); font-weight: 700; letter-spacing: .1em; font: 700 15px 'DM Mono', monospace; background: rgba(213, 169, 79, .08); }
+.student-coord-card strong { display: block; font-size: 16px; margin-bottom: 6px; font-weight: 600; letter-spacing: -.01em; }
+.student-coord-card span { font: 12px 'DM Mono', monospace; color: var(--gold); letter-spacing: .06em; }
+.student-coord-card i { font-style: normal; color: var(--gold); text-align: right; font-size: 18px; }
+
+.sponsor-card { border: 1px solid var(--line); background: rgba(43, 25, 16, .5); padding: 20px 24px; margin-top: 12px; }
+.sponsor-card strong { display: block; font-size: 15px; margin-bottom: 6px; font-weight: 600; }
+.sponsor-card span { font: 11px 'DM Mono', monospace; color: var(--muted); letter-spacing: .05em; }
+
+.faculty-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.faculty-card { display: grid; grid-template-columns: 30px 1fr; gap: 14px; align-items: center; padding: 16px 18px; border: 1px solid var(--line); background: rgba(43, 25, 16, .4); transition: border-color .2s ease; }
+.faculty-card:hover { border-color: rgba(213, 169, 79, .5); }
+.faculty-card .mono { color: var(--gold); font-size: 10px; }
+.faculty-card strong { display: block; font-size: 13px; font-weight: 500; margin-bottom: 3px; }
+.faculty-card span { font: 10px 'DM Mono', monospace; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; }
+
+@media (max-width: 850px) {
+  .coord-grid { grid-template-columns: 1fr; gap: 40px; }
+}
+@media (max-width: 560px) {
+  .faculty-grid { grid-template-columns: 1fr; }
+  .student-coord-card { grid-template-columns: 50px 1fr 16px; gap: 12px; padding: 18px; }
+  .coord-avatar { width: 46px; height: 46px; font-size: 13px; }
+}
 .sdg-row { min-height: 76px; display: grid; grid-template-columns: 90px 1fr 30px; align-items: center; border-bottom: 1px solid var(--line); gap: 20px; }
 .sdg-row span { font: 11px 'DM Mono', monospace; color: var(--gold); }
 .sdg-row strong { font-size: 15px; letter-spacing: .04em; }

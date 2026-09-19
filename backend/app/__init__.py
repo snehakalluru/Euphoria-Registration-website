@@ -1,0 +1,1 @@
+"""Euphoria Hackathon backend application package."""

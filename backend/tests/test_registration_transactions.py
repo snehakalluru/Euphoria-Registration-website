@@ -16,12 +16,13 @@ from app.models import Base, Hackathon, Team, TeamMember
 
 
 def _member(tag: str, number: int, **overrides):
+    phone_seed = "".join(str(ord(char) % 10) for char in tag)
     member = {
         "member_number": number,
         "name": f"Member {number} {tag}",
         "registration_number": f"ROLL-{tag}-{number}",
         "email": f"member{number}.{tag.lower()}@example.com",
-        "phone": f"90000{tag[-4:]}{number}",
+        "phone": f"9{phone_seed}{number}".ljust(10, "0")[:10],
         "gender": "Male" if number % 2 else "Female",
         "year": "N/A",
         "branch": "N/A",
@@ -47,6 +48,11 @@ def _payload(tag: str | None = None):
 def _code(response):
     body = response.json()
     return body.get("error", {}).get("code") or body.get("detail", {}).get("code")
+
+
+def _message(response):
+    body = response.json()
+    return body.get("error", {}).get("message") or body.get("detail", {}).get("message")
 
 
 async def _counts(factory):
@@ -120,6 +126,37 @@ def test_same_payload_returns_duplicate_team_409(registration_client):
     assert asyncio.run(_counts(factory)) == (1, 4)
 
 
+def test_team_name_case_variation_returns_duplicate(registration_client):
+    client, factory = registration_client
+    payload = _payload("VIBECASE")
+    payload["team_name"] = "Vibe coders"
+    assert asyncio.run(client.post("/api/registrations", json=payload)).status_code == 201
+    second = _payload("VIBECA2")
+    second["team_name"] = "VIBE CODERS"
+
+    response = asyncio.run(client.post("/api/registrations", json=second))
+
+    assert response.status_code == 409, response.text
+    assert _code(response) == "DUPLICATE_TEAM"
+    assert asyncio.run(_counts(factory)) == (1, 4)
+
+
+def test_team_name_whitespace_variation_returns_duplicate(registration_client):
+    client, factory = registration_client
+    payload = _payload("VIBESPC")
+    payload["team_name"] = "Vibe coders"
+    assert asyncio.run(client.post("/api/registrations", json=payload)).status_code == 201
+    second = _payload("VIBESP2")
+    second["team_name"] = "  Vibe   coders  "
+
+    response = asyncio.run(client.post("/api/registrations", json=second))
+
+    assert response.status_code == 409, response.text
+    assert _code(response) == "DUPLICATE_TEAM"
+    assert _message(response) == "Team name already exists. Please choose a different team name."
+    assert asyncio.run(_counts(factory)) == (1, 4)
+
+
 def test_duplicate_euphoria_id_returns_409(registration_client):
     client, factory = registration_client
     first = _payload("DUPEUPH1")
@@ -145,6 +182,7 @@ def test_duplicate_email_returns_409(registration_client):
 
     assert response.status_code == 409, response.text
     assert _code(response) == "DUPLICATE_EMAIL"
+    assert _message(response) == "This email has already been registered."
     assert asyncio.run(_counts(factory)) == (1, 4)
 
 
@@ -159,6 +197,7 @@ def test_duplicate_phone_returns_409(registration_client):
 
     assert response.status_code == 409, response.text
     assert _code(response) == "DUPLICATE_PHONE"
+    assert _message(response) == "This phone number has already been registered."
     assert asyncio.run(_counts(factory)) == (1, 4)
 
 
@@ -173,7 +212,112 @@ def test_duplicate_registration_number_returns_409(registration_client):
 
     assert response.status_code == 409, response.text
     assert _code(response) == "DUPLICATE_REGISTRATION_NUMBER"
+    assert _message(response) == "This registration/roll number is already registered."
     assert asyncio.run(_counts(factory)) == (1, 4)
+
+
+def test_availability_checks_unique_values(registration_client):
+    client, _ = registration_client
+
+    checks = [
+        ("team_name", "Fresh Team"),
+        ("email", "fresh@example.com"),
+        ("registration_number", "ROLL-FRESH-1"),
+        ("phone", "9876543210"),
+    ]
+
+    for check_type, value in checks:
+        response = asyncio.run(client.get("/api/registrations/check-availability", params={"type": check_type, "value": value}))
+        assert response.status_code == 200, response.text
+        assert response.json() == {"success": True, "available": True}
+
+
+def test_availability_checks_existing_values_and_normalization(registration_client):
+    client, _ = registration_client
+    payload = _payload("AVAIL001")
+    payload["team_name"] = "Vibe coders"
+    assert asyncio.run(client.post("/api/registrations", json=payload)).status_code == 201
+
+    checks = [
+        ("team_name", "VIBE CODERS"),
+        ("team_name", "  Vibe   coders  "),
+        ("email", payload["members"][0]["email"].upper()),
+        ("registration_number", payload["members"][1]["registration_number"].lower()),
+        ("phone", payload["members"][2]["phone"]),
+    ]
+
+    for check_type, value in checks:
+        response = asyncio.run(client.get("/api/registrations/check-availability", params={"type": check_type, "value": value}))
+        assert response.status_code == 200, response.text
+        assert response.json() == {"success": True, "available": False}
+
+
+def test_availability_response_does_not_expose_existing_participant_details(registration_client):
+    client, _ = registration_client
+    payload = _payload("NOPII001")
+    assert asyncio.run(client.post("/api/registrations", json=payload)).status_code == 201
+
+    response = asyncio.run(client.get("/api/registrations/check-availability", params={"type": "email", "value": payload["members"][0]["email"].upper()}))
+
+    assert response.status_code == 200, response.text
+    assert response.json() == {"success": True, "available": False}
+
+
+def test_availability_check_rejects_invalid_phone_format(registration_client):
+    client, _ = registration_client
+
+    response = asyncio.run(client.get("/api/registrations/check-availability", params={"type": "phone", "value": "98765abc10"}))
+
+    assert response.status_code == 400, response.text
+    assert _code(response) == "INVALID_PHONE"
+    assert _message(response) == "Phone number must contain exactly 10 digits."
+
+
+@pytest.mark.parametrize("phone", ["9876543210"])
+def test_ten_digit_phone_is_valid(registration_client, phone):
+    client, factory = registration_client
+    payload = _payload("PHONEOK")
+    payload["members"][0]["phone"] = phone
+
+    response = asyncio.run(client.post("/api/registrations", json=payload))
+
+    assert response.status_code == 201, response.text
+    assert asyncio.run(_counts(factory)) == (1, 4)
+
+
+@pytest.mark.parametrize("phone", ["987654321", "98765432101", "98765abc10", "98765-3210"])
+def test_invalid_phone_rejected(registration_client, phone):
+    client, factory = registration_client
+    payload = _payload(f"BAD{uuid.uuid4().hex[:5].upper()}")
+    payload["members"][0]["phone"] = phone
+
+    response = asyncio.run(client.post("/api/registrations", json=payload))
+
+    assert response.status_code == 422, response.text
+    assert asyncio.run(_counts(factory)) == (0, 0)
+
+
+def test_repeated_warden_name_and_phone_allowed(registration_client):
+    client, factory = registration_client
+    first = _payload("WARDEN01")
+    second = _payload("WARDEN02")
+    shared_hostel = {
+        "hostel_name": "Shared Hostel",
+        "room_number": "101",
+        "warden_name": "Repeated Warden",
+        "warden_phone": "9876543210",
+    }
+    for payload in (first, second):
+        for member in payload["members"]:
+            member["accommodation_type"] = "hosteller"
+            member["hostel"] = {**shared_hostel, "room_number": f"{payload['team_name']}-{member['member_number']}"}
+
+    first_response = asyncio.run(client.post("/api/registrations", json=first))
+    second_response = asyncio.run(client.post("/api/registrations", json=second))
+
+    assert first_response.status_code == 201, first_response.text
+    assert second_response.status_code == 201, second_response.text
+    assert asyncio.run(_counts(factory)) == (2, 8)
 
 
 def test_failed_member_insert_rolls_back_complete_transaction(registration_client):

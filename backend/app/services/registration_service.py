@@ -13,9 +13,11 @@ from app.services.normalization import normalize_email, normalize_identifier, no
 
 
 class RegistrationServiceError(Exception):
-    def __init__(self, code: str, message: str):
+    def __init__(self, code: str, message: str, field: str | None = None, member_number: int | None = None):
         self.code = code
         self.message = message
+        self.field = field
+        self.member_number = member_number
         super().__init__(message)
 
 
@@ -31,11 +33,11 @@ def generate_registration_id() -> str:
 
 
 CONSTRAINT_ERRORS = {
-    "uq_teams_hackathon_team_name": ("DUPLICATE_TEAM", "A team with this name has already been registered."),
+    "uq_teams_hackathon_team_name": ("DUPLICATE_TEAM", "Team name already exists. Please choose a different team name."),
     "uq_team_members_hackathon_euphoria": ("DUPLICATE_EUPHORIA_ID", "This Euphoria ID has already been registered."),
     "uq_team_members_hackathon_email": ("DUPLICATE_EMAIL", "This email has already been registered."),
     "uq_team_members_hackathon_phone": ("DUPLICATE_PHONE", "This phone number has already been registered."),
-    "uq_team_members_hackathon_registration": ("DUPLICATE_REGISTRATION_NUMBER", "This registration number has already been registered."),
+    "uq_team_members_hackathon_registration": ("DUPLICATE_REGISTRATION_NUMBER", "This registration/roll number is already registered."),
     "uq_team_members_team_member_number": ("DUPLICATE_MEMBER_POSITION", "This team member position is duplicated."),
 }
 REGISTRATION_ID_CONSTRAINTS = {"teams_registration_id_key", "uq_teams_registration_id"}
@@ -75,8 +77,44 @@ def _constraint_name(exc: IntegrityError) -> str:
     return ""
 
 
-def _duplicate_error(code: str, message: str) -> RegistrationServiceError:
-    return RegistrationServiceError(code, message)
+def _duplicate_error(code: str, message: str, field: str | None = None, member_number: int | None = None) -> RegistrationServiceError:
+    return RegistrationServiceError(code, message, field=field, member_number=member_number)
+
+
+async def check_registration_availability(session: AsyncSession, field_type: str, value: str) -> bool:
+    hackathon = await session.scalar(select(Hackathon).where(Hackathon.is_active.is_(True)).limit(1))
+    if hackathon is None:
+        raise RegistrationServiceError("HACKATHON_NOT_CONFIGURED", "The active hackathon is not configured.")
+
+    check_value = value.strip()
+    if not check_value:
+        raise RegistrationServiceError("INVALID_AVAILABILITY_CHECK", "A value is required.")
+
+    if field_type == "team_name":
+        normalized = normalize_team_name(check_value)
+        existing = await session.scalar(
+            select(Team.id).where(Team.hackathon_id == hackathon.id, Team.team_name_normalized == normalized).limit(1)
+        )
+    elif field_type == "email":
+        normalized = normalize_email(check_value)
+        existing = await session.scalar(
+            select(TeamMember.id).where(TeamMember.hackathon_id == hackathon.id, TeamMember.email_normalized == normalized).limit(1)
+        )
+    elif field_type == "phone":
+        normalized = normalize_phone(check_value)
+        if not normalized.isdigit() or len(normalized) != 10:
+            raise RegistrationServiceError("INVALID_PHONE", "Phone number must contain exactly 10 digits.")
+        existing = await session.scalar(
+            select(TeamMember.id).where(TeamMember.hackathon_id == hackathon.id, TeamMember.phone_normalized == normalized).limit(1)
+        )
+    elif field_type == "registration_number":
+        normalized = normalize_identifier(check_value)
+        existing = await session.scalar(
+            select(TeamMember.id).where(TeamMember.hackathon_id == hackathon.id, TeamMember.registration_number_normalized == normalized).limit(1)
+        )
+    else:
+        raise RegistrationServiceError("INVALID_AVAILABILITY_CHECK", "Unsupported availability check type.")
+    return existing is None
 
 
 async def _rollback_safely(session: AsyncSession) -> None:
@@ -109,21 +147,28 @@ async def create_registration(session: AsyncSession, payload: RegistrationSubmis
 
             duplicate_team = await session.scalar(select(Team.id).where(Team.hackathon_id == hackathon.id, Team.team_name_normalized == team_name_normalized))
             if duplicate_team:
-                raise _duplicate_error("DUPLICATE_TEAM", "A team with this name has already been registered.")
+                raise _duplicate_error("DUPLICATE_TEAM", "Team name already exists. Please choose a different team name.", field="team_name")
 
             for field_name, values, code, message in (
                 ("email_normalized", member_values["emails"], "DUPLICATE_EMAIL", "This email has already been registered."),
                 ("phone_normalized", member_values["phones"], "DUPLICATE_PHONE", "This phone number has already been registered."),
-                ("registration_number_normalized", member_values["registration_numbers"], "DUPLICATE_REGISTRATION_NUMBER", "This registration number has already been registered."),
+                ("registration_number_normalized", member_values["registration_numbers"], "DUPLICATE_REGISTRATION_NUMBER", "This registration/roll number is already registered."),
                 ("euphoria_id_normalized", member_values["euphoria_ids"], "DUPLICATE_EUPHORIA_ID", "This Euphoria ID has already been registered."),
             ):
-                existing = await session.scalar(
-                    select(TeamMember.id)
-                    .where(TeamMember.hackathon_id == hackathon.id, getattr(TeamMember, field_name).in_(values))
-                    .limit(1)
-                )
-                if existing:
-                    raise _duplicate_error(code, message)
+                for value, member in zip(values, payload.members):
+                    existing = await session.scalar(
+                        select(TeamMember.id)
+                        .where(TeamMember.hackathon_id == hackathon.id, getattr(TeamMember, field_name) == value)
+                        .limit(1)
+                    )
+                    if existing:
+                        field = {
+                            "email_normalized": "email",
+                            "phone_normalized": "phone",
+                            "registration_number_normalized": "registration_number",
+                            "euphoria_id_normalized": "euphoria_id",
+                        }.get(field_name)
+                        raise _duplicate_error(code, message, field=field, member_number=member.member_number)
 
             team = Team(
                 id=uuid4(), hackathon_id=hackathon.id, registration_id=generate_registration_id(), team_name=payload.team_name,
@@ -157,7 +202,14 @@ async def create_registration(session: AsyncSession, payload: RegistrationSubmis
                 last_registration_collision = exc
                 continue
             code, message = CONSTRAINT_ERRORS.get(constraint, ("REGISTRATION_FAILED", "The registration could not be completed."))
-            raise RegistrationServiceError(code, message) from exc
+            field = {
+                "DUPLICATE_TEAM": "team_name",
+                "DUPLICATE_EMAIL": "email",
+                "DUPLICATE_PHONE": "phone",
+                "DUPLICATE_REGISTRATION_NUMBER": "registration_number",
+                "DUPLICATE_EUPHORIA_ID": "euphoria_id",
+            }.get(code)
+            raise RegistrationServiceError(code, message, field=field) from exc
         except RegistrationServiceError:
             await _rollback_safely(session)
             raise

@@ -59,6 +59,22 @@ const errorMessageFrom = (error, fallback = "Please review the highlighted infor
 const blankMember = (number) => ({ member_number: number, name: "", registration_number: "", email: "", phone: "", gender: "", year: "N/A", branch: "N/A", section: "N/A", euphoria_id: "", accommodation_type: "day_scholar", hostel: null });
 const emptyDraft = { team_name: "", college_type: "internal", college_name: "", members: [1, 2, 3, 4].map(blankMember), confirmation_accepted: false };
 const GENDERS = ["Male", "Female", "Prefer not to say"];
+const duplicateMessages = {
+  team_name: "Team name already exists. Please choose a different team name.",
+  email: "This email is already registered.",
+  registration_number: "This registration/roll number is already registered.",
+  phone: "This phone number is already registered.",
+};
+const phoneFormatMessage = "Phone number must contain exactly 10 digits.";
+
+const memberFieldKey = (memberNumber, field) => `member-${memberNumber}-${field}`;
+const backendFieldKey = (field, memberNumber) => memberNumber ? memberFieldKey(memberNumber, field) : field;
+const phoneIsComplete = (value) => /^\d{10}$/.test(String(value || ""));
+const availabilityStatus = (checking, unavailableMessage, value) => {
+  if (checking) return "Checking...";
+  if (unavailableMessage || !String(value || "").trim()) return "";
+  return "";
+};
 
 const FACULTY_COORDINATORS = [
   { name: "Mrs. N. Kirthiga", role: "AP/CSE" },
@@ -467,11 +483,13 @@ function Landing() {
 }
 
 /* ---------- Form fields ---------- */
-function Field({ label, value, onChange, type = "text", required = true, placeholder = "", testId }) {
+function Field({ label, value, onChange, type = "text", required = true, placeholder = "", testId, error = "", status = "", maxLength, inputMode }) {
   return (
-    <label className="field">
+    <label className={`field${error ? " has-error" : ""}`}>
       <span>{label}{required && <b>*</b>}</span>
-      <input value={value} onChange={onChange} type={type} required={required} placeholder={placeholder} data-testid={testId} />
+      <input value={value} onChange={onChange} type={type} required={required} placeholder={placeholder} data-testid={testId} maxLength={maxLength} inputMode={inputMode} aria-invalid={!!error} />
+      {status && !error && <small className="field-status">{status}</small>}
+      {error && <small className="field-error">{error}</small>}
     </label>
   );
 }
@@ -488,7 +506,7 @@ function SelectField({ label, value, onChange, options, testId, required = true 
   );
 }
 
-function MemberCard({ member, index, update, remove, collegeType }) {
+function MemberCard({ member, index, update, remove, collegeType, errors = {}, checking = {}, onPhoneChange }) {
   const set = (key, value) => update({ ...member, [key]: value });
   const prefix = `member-${member.member_number}`;
   const isLead = member.member_number === 1;
@@ -506,10 +524,10 @@ function MemberCard({ member, index, update, remove, collegeType }) {
       </div>
       <div className="field-grid">
         <Field label="Name" testId={`${prefix}-name-input`} value={member.name} onChange={(e) => set("name", e.target.value)} />
-        <Field label="Registration / Roll Number" testId={`${prefix}-registration-number-input`} value={member.registration_number} onChange={(e) => set("registration_number", e.target.value)} />
+        <Field label="Registration / Roll Number" testId={`${prefix}-registration-number-input`} value={member.registration_number} onChange={(e) => set("registration_number", e.target.value)} error={errors[memberFieldKey(member.member_number, "registration_number")]} status={availabilityStatus(checking[memberFieldKey(member.member_number, "registration_number")], errors[memberFieldKey(member.member_number, "registration_number")], member.registration_number)} />
         <SelectField label="Gender" testId={`${prefix}-gender-select`} value={member.gender} options={GENDERS} onChange={(e) => set("gender", e.target.value)} />
-        <Field label="Email ID" testId={`${prefix}-email-input`} value={member.email} type="email" onChange={(e) => set("email", e.target.value)} />
-        <Field label="Phone Number" testId={`${prefix}-phone-input`} value={member.phone} type="tel" onChange={(e) => set("phone", e.target.value)} />
+        <Field label="Email ID" testId={`${prefix}-email-input`} value={member.email} type="email" onChange={(e) => set("email", e.target.value)} error={errors[memberFieldKey(member.member_number, "email")]} status={availabilityStatus(checking[memberFieldKey(member.member_number, "email")], errors[memberFieldKey(member.member_number, "email")], member.email)} />
+        <Field label="Phone Number" testId={`${prefix}-phone-input`} value={member.phone} type="tel" maxLength={10} inputMode="numeric" onChange={(e) => onPhoneChange(member, e.target.value)} error={errors[memberFieldKey(member.member_number, "phone")]} status={availabilityStatus(checking[memberFieldKey(member.member_number, "phone")], errors[memberFieldKey(member.member_number, "phone")], member.phone)} />
         <Field label="Euphoria ID" testId={`${prefix}-euphoria-id-input`} value={member.euphoria_id} onChange={(e) => set("euphoria_id", e.target.value)} placeholder="Given in the email payment receipt" />
       </div>
       {collegeType === "internal" && (
@@ -534,13 +552,107 @@ function MemberCard({ member, index, update, remove, collegeType }) {
 }
 
 /* ---------- Registration ---------- */
-function Registration({ draft, setDraft }) {
+function Registration({ draft, setDraft, validationErrors = {}, setValidationErrors }) {
   const navigate = useNavigate();
+  const [checking, setChecking] = useState({});
+  const setFieldError = useCallback((key, message) => {
+    setValidationErrors((current) => {
+      const next = { ...current };
+      if (message) next[key] = message;
+      else delete next[key];
+      return next;
+    });
+  }, [setValidationErrors]);
+
+  const availabilityItems = useMemo(() => {
+    const items = [];
+    if (draft.team_name.trim()) {
+      items.push({ key: "team_name", type: "team_name", value: draft.team_name, message: duplicateMessages.team_name });
+    }
+    draft.members.forEach((member) => {
+      const email = member.email.trim();
+      const registrationNumber = member.registration_number.trim();
+      const phone = member.phone.trim();
+      if (email.includes("@")) {
+        items.push({ key: memberFieldKey(member.member_number, "email"), type: "email", value: email, message: duplicateMessages.email });
+      }
+      if (registrationNumber) {
+        items.push({ key: memberFieldKey(member.member_number, "registration_number"), type: "registration_number", value: registrationNumber, message: duplicateMessages.registration_number });
+      }
+      if (phoneIsComplete(phone)) {
+        items.push({ key: memberFieldKey(member.member_number, "phone"), type: "phone", value: phone, message: duplicateMessages.phone });
+      }
+    });
+    return items;
+  }, [draft.team_name, draft.members]);
+
+  useEffect(() => {
+    const currentKeys = new Set(availabilityItems.map((item) => item.key));
+    setValidationErrors((current) => {
+      const next = { ...current };
+      Object.keys(next).forEach((key) => {
+        if (!currentKeys.has(key) && next[key] && next[key] !== phoneFormatMessage) delete next[key];
+      });
+      return next;
+    });
+    if (!availabilityItems.length) return undefined;
+
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      const keys = availabilityItems.map((item) => item.key);
+      setChecking((current) => keys.reduce((next, key) => ({ ...next, [key]: true }), current));
+      availabilityItems.forEach(async (item) => {
+        try {
+          const response = await axios.get(apiUrl("/registrations/check-availability"), { params: { type: item.type, value: item.value } });
+          if (cancelled) return;
+          setFieldError(item.key, response.data.available ? "" : item.message);
+        } catch {
+          if (!cancelled) setFieldError(item.key, "");
+        } finally {
+          if (!cancelled) {
+            setChecking((current) => {
+              const next = { ...current };
+              delete next[item.key];
+              return next;
+            });
+          }
+        }
+      });
+    }, 600);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [availabilityItems, setFieldError, setValidationErrors]);
+
   const submit = () => {
+    const nextErrors = { ...validationErrors };
+    draft.members.forEach((member) => {
+      const key = memberFieldKey(member.member_number, "phone");
+      if (!phoneIsComplete(member.phone)) nextErrors[key] = phoneFormatMessage;
+    });
+    setValidationErrors(nextErrors);
+    const blockingError = Object.values(nextErrors).some((message) => [
+      phoneFormatMessage,
+      duplicateMessages.team_name,
+      duplicateMessages.email,
+      duplicateMessages.registration_number,
+      duplicateMessages.phone,
+    ].includes(message));
+    if (blockingError || Object.keys(checking).length) return;
     setDraft(buildDraft(draft));
     navigate("/register/review");
   };
   const updateMember = (index, value) => setDraft({ ...draft, members: draft.members.map((m, i) => i === index ? value : m) });
+  const updatePhone = (member, rawValue) => {
+    const key = memberFieldKey(member.member_number, "phone");
+    if (!/^\d*$/.test(rawValue) || rawValue.length > 10) {
+      setFieldError(key, phoneFormatMessage);
+      return;
+    }
+    setFieldError(key, rawValue && rawValue.length !== 10 ? phoneFormatMessage : "");
+    updateMember(member.member_number - 1, { ...member, phone: rawValue });
+  };
   const setCollegeType = (value) => {
     let members = draft.members;
     if (value === "external") {
@@ -574,7 +686,7 @@ function Registration({ draft, setDraft }) {
             <span className="required-note">* Required</span>
           </div>
           <div className="field-grid">
-            <Field label="Team name" testId="team-name-input" value={draft.team_name} onChange={(e) => setDraft({ ...draft, team_name: e.target.value })} />
+            <Field label="Team name" testId="team-name-input" value={draft.team_name} onChange={(e) => setDraft({ ...draft, team_name: e.target.value })} error={validationErrors.team_name} status={availabilityStatus(checking.team_name, validationErrors.team_name, draft.team_name)} />
             <label className="field">
               <span>College type<b>*</b></span>
               <select value={draft.college_type} onChange={(e) => setCollegeType(e.target.value)} data-testid="college-type-select">
@@ -588,7 +700,7 @@ function Registration({ draft, setDraft }) {
           </div>
         </section>
         {draft.members.map((member, index) => (
-          <MemberCard key={member.member_number} member={member} index={index} collegeType={draft.college_type} update={(value) => updateMember(index, value)} remove={() => setDraft({ ...draft, members: draft.members.slice(0, 4) })} />
+          <MemberCard key={member.member_number} member={member} index={index} collegeType={draft.college_type} errors={validationErrors} checking={checking} onPhoneChange={updatePhone} update={(value) => updateMember(index, value)} remove={() => setDraft({ ...draft, members: draft.members.slice(0, 4) })} />
         ))}
         {draft.members.length === 4 && (
           <button className="add-member" type="button" onClick={() => setDraft({ ...draft, members: [...draft.members, blankMember(5)] })} data-testid="add-member-five-button">+ Add optional member 05</button>
@@ -600,7 +712,7 @@ function Registration({ draft, setDraft }) {
 }
 
 /* ---------- Review ---------- */
-function Review({ draft, setDraft }) {
+function Review({ draft, setDraft, setValidationErrors }) {
   const navigate = useNavigate();
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -616,7 +728,14 @@ function Review({ draft, setDraft }) {
       const data = response.data.data;
       navigate(`/register/success/${data.registration_id}`, { state: data });
     } catch (e) {
-      setError(errorMessageFrom(e));
+      const detail = e?.response?.data?.detail || e?.response?.data?.error;
+      if (detail?.field) {
+        const key = backendFieldKey(detail.field, detail.memberNumber);
+        setValidationErrors((current) => ({ ...current, [key]: detail.message || errorMessageFrom(e) }));
+        navigate("/register");
+      } else {
+        setError(errorMessageFrom(e));
+      }
     } finally {
       setLoading(false);
       inFlight.current = false;
@@ -1052,6 +1171,7 @@ function AdminDashboard() {
 /* ---------- Root ---------- */
 function App() {
   const [draft, setDraft] = useState(emptyDraft);
+  const [validationErrors, setValidationErrors] = useState({});
   useEffect(() => {
     try { const raw = sessionStorage.getItem("euphoria_draft"); if (raw) setDraft(buildDraft(JSON.parse(raw))); } catch { /* ignore */ }
   }, []);
@@ -1060,8 +1180,8 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Landing />} />
-        <Route path="/register" element={<Registration draft={draft} setDraft={setDraft} />} />
-        <Route path="/register/review" element={<Review draft={draft} setDraft={setDraft} />} />
+        <Route path="/register" element={<Registration draft={draft} setDraft={setDraft} validationErrors={validationErrors} setValidationErrors={setValidationErrors} />} />
+        <Route path="/register/review" element={<Review draft={draft} setDraft={setDraft} setValidationErrors={setValidationErrors} />} />
         <Route path="/register/success/:registrationId" element={<Success />} />
         <Route path="/admin/login" element={<AdminLogin />} />
         <Route path="/admin" element={<AdminDashboard />} />

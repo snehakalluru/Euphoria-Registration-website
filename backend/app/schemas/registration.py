@@ -38,6 +38,13 @@ class MemberSubmission(BaseModel):
     def strip_text(cls, value: str) -> str:
         return value.strip() if isinstance(value, str) else value
 
+    @field_validator("phone")
+    @classmethod
+    def validate_phone(cls, value: str) -> str:
+        if not value.isdigit() or len(value) != 10:
+            raise ValueError("PHONE_EXACTLY_10_DIGITS")
+        return value
+
     @model_validator(mode="after")
     def validate_accommodation(self):
         if self.accommodation_type == "hosteller" and self.hostel is None:

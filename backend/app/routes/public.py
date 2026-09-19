@@ -1,12 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from fastapi.responses import JSONResponse
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.models import Club, Hackathon, Team
 from app.schemas.registration import PublicRegistrationResponse, RegistrationCreatedResponse, RegistrationSubmission
-from app.services.registration_service import RegistrationServiceError, create_registration
+from app.services.registration_service import RegistrationServiceError, check_registration_availability, create_registration
 from app.services.storage import StorageError, get_object
 
 router = APIRouter(prefix="/api")
@@ -75,9 +76,31 @@ async def post_registration(payload: RegistrationSubmission, session: AsyncSessi
     except RegistrationServiceError as exc:
         http_status = status.HTTP_409_CONFLICT if exc.code.startswith("DUPLICATE_") else status.HTTP_503_SERVICE_UNAVAILABLE if exc.code == "DATABASE_UNAVAILABLE" else status.HTTP_400_BAD_REQUEST
         error = {"code": exc.code, "message": exc.message}
+        if exc.field:
+            error["field"] = exc.field
+        if exc.member_number:
+            error["memberNumber"] = exc.member_number
         return JSONResponse(status_code=http_status, content={"error": error, "detail": error})
     public = PublicRegistrationResponse(registration_id=created.team.registration_id, team_name=created.team.team_name, member_count=created.team.member_count, submitted_at=created.team.submitted_at, whatsapp_url=created.hackathon.whatsapp_url)
     return RegistrationCreatedResponse(data=public)
+
+
+@router.get("/registrations/check-availability")
+async def check_availability(
+    type: str = Query(..., pattern="^(team_name|email|phone|registration_number)$"),
+    value: str = Query(..., min_length=1, max_length=255),
+    session: AsyncSession = Depends(get_db),
+):
+    try:
+        available = await check_registration_availability(session, type, value)
+    except RegistrationServiceError as exc:
+        http_status = status.HTTP_503_SERVICE_UNAVAILABLE if exc.code == "DATABASE_UNAVAILABLE" else status.HTTP_400_BAD_REQUEST
+        error = {"code": exc.code, "message": exc.message}
+        return JSONResponse(status_code=http_status, content={"success": False, "error": error, "detail": error})
+    except SQLAlchemyError:
+        error = {"code": "DATABASE_UNAVAILABLE", "message": "The registration service is temporarily unavailable. Please try again."}
+        return JSONResponse(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, content={"success": False, "error": error, "detail": error})
+    return {"success": True, "available": available}
 
 
 @router.get("/registrations/{registration_id}", response_model=RegistrationCreatedResponse)

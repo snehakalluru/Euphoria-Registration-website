@@ -2,10 +2,15 @@ from collections.abc import AsyncIterator
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from app.core.config import get_async_database_url
+from app.core.config import get_async_database_url, is_sqlite
+
+_engine = None
+_factory = None
 
 
-def create_engine():
+def _build_engine():
+    if is_sqlite():
+        return create_async_engine(get_async_database_url(), echo=False, connect_args={"check_same_thread": False})
     return create_async_engine(
         get_async_database_url(),
         pool_size=10,
@@ -17,12 +22,24 @@ def create_engine():
     )
 
 
+def get_engine():
+    global _engine, _factory
+    if _engine is None:
+        _engine = _build_engine()
+        _factory = async_sessionmaker(bind=_engine, class_=AsyncSession, expire_on_commit=False, autoflush=False)
+    return _engine
+
+
+def get_session_factory():
+    if _factory is None:
+        get_engine()
+    return _factory
+
+
 async def get_db() -> AsyncIterator[AsyncSession]:
-    engine = create_engine()
-    factory = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False, autoflush=False)
+    factory = get_session_factory()
     async with factory() as session:
         try:
             yield session
         finally:
             await session.close()
-            await engine.dispose()
